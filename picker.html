@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Efootball</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<h1>Efootball⚽</h1>
+
+<div class="page-layout">
+
+  <!-- LEFT TEAMS -->
+  <section class="side-panel" id="leftTeams">
+    <h2>👤 Teams</h2>
+    <div id="leftLeaderboard"></div>
+  </section>
+
+  <!-- CENTER COLUMN -->
+  <section class="center-column">
+
+    <!-- AUCTION -->
+    <section class="middle-panel">
+      <h2>🎯 Auction Area</h2>
+      <div id="auctionSection"></div>
+      <div id="result"></div>
+    </section>
+
+    <!-- PLAYERS -->
+    <section class="player-panel">
+      <h2>🎮 Players (<span id="playerCount">0</span>)</h2>
+      <div class="player-add-row">
+        <input type="text" id="playerInput" placeholder="Enter player name" />
+        <button id="addPlayerBtn">Add Player</button>
+      </div>
+      <div id="playerList"></div>
+    </section>
+
+    <section class="player-panel">
+  <h2>⭐ Top Players (<span id="topPlayerCount">0</span>)</h2>
+
+  <div class="player-add-row">
+    <input type="text" id="topPlayerInput" placeholder="Enter top player name" />
+    <button id="addTopPlayerBtn">Add Top Player</button>
+  </div>
+
+  <div id="topPlayerList"></div>
+</section>
+
+
+    <!-- UNSOLD -->
+    <div id="unsoldPlayers">
+      <h3>🗂 Unsold Players</h3>
+      <ul></ul>
+    </div>
+
+    <div id="soldHistory" class="sold-panel">
+  <h3>🧾 Sold History</h3>
+  <ul id="soldHistoryList"></ul>
+</div>
+
+
+  </section>
+
+  <!-- RIGHT TEAMS -->
+  <section class="side-panel" id="rightTeams">
+    <h2>👤 Teams</h2>
+    <button id="openTeamModalBtn" class="add-team-btn">➕ Add Team</button>
+    <div id="rightLeaderboard"></div>
+  </section>
+
+</div>
+
+<!-- PLAYER DATA MODAL (unchanged) -->
+<div id="playerDataModal" class="modal hidden">
+  <div class="modal-content small">
+    <button id="pdClose" class="modal-close">✕</button>
+    <h3>Player details</h3>
+    <form onsubmit="return false;">
+      <label>Player name</label>
+      <input type="text" id="pdName" readonly />
+      <label>Card Type</label>
+<select id="pdCardType">
+  <option value="silver">Silver</option>
+  <option value="gold">Gold</option>
+</select>
+
+<label>Previous Season Team</label>
+<select id="pdPrevTeam">
+  <option value="">None</option>
+  <option value="barca">Barcelona</option>
+  <option value="psg">PSG</option>
+  <option value="rm">Real Madrid</option>
+  <option value="manutd">Man United</option>
+  <option value="mancity">Man City</option>
+  <option value="liverpool">Liverpool</option>
+  <option value="chelsea">Chelsea</option>
+  <option value="santos">Santos</option>
+</select>
+
+      <div class="modal-actions">
+        <button id="pdConfirm" type="button">Add</button>
+        <button id="pdCancel" type="button" class="danger">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- TEAM ADD MODAL -->
+<div id="teamModal" class="modal hidden">
+  <div class="modal-content small">
+    <button id="teamClose" class="modal-close">✕</button>
+    <h3>Add Team</h3>
+    <label>Captain Name</label>
+    <input type="text" id="teamCaptainInput" />
+    <label>Team Name</label>
+    <input type="text" id="teamNameInput" />
+    <label>Team Logo</label>
+    <input type="file" id="teamLogoInput" accept="image/*" />
+    <div class="modal-actions">
+      <button id="teamConfirmBtn">Add Team</button>
+      <button id="teamCancelBtn" class="danger">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="undoToast" class="undo-toast hidden">
+  <span id="undoText">Action undone</span>
+  <button id="undoActionBtn">Undo</button>
+</div>
+
+
+<script src="script.js"></script>
+</body>
+</html>
