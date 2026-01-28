@@ -97,7 +97,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const teamMeta = {};
   const historyLog = [];
   const playerMeta = {};
-  const topPlayers = [];
   const teamLogos = {
   barca: "logos/barca.png",
   psg: "logos/psg.png",
@@ -139,10 +138,6 @@ const pdClose = document.getElementById("pdClose");
 const undoText = document.getElementById("undoText");
 const undoBtn = document.getElementById("undoActionBtn");
 
-const topPlayerInput = document.getElementById("topPlayerInput");
-const addTopPlayerBtn = document.getElementById("addTopPlayerBtn");
-const topPlayerList = document.getElementById("topPlayerList");
-const topPlayerCount = document.getElementById("topPlayerCount");
 
 
   /* =======================
@@ -242,48 +237,7 @@ undoBtn.addEventListener("click", () => {
   }
 });
 
-function checkNormalAuctionCompleted() {
-  if (
-    auctionPhase === "normal" &&
-    players.length === 0 &&
-    unsoldPlayers.length === 0 &&
-    currentPlayer === null
-  ) {
-    showTopPlayerStart();
-  }
-}
 
-function showTopPlayerStart() {
-  auctionSection.innerHTML = `
-    <h2 class="auction-title">⭐ Top Player Allocation</h2>
-    <p class="auction-focus">
-      All auction players sold.<br>
-      Ready to allocate Top Players.
-    </p>
-    <button id="startTopAllocationBtn" class="danger-btn">
-      ▶ Start Top Player Allocation
-    </button>
-  `;
-
-  const btn = document.getElementById("startTopAllocationBtn");
-  if (btn) {
-    btn.addEventListener("click", () => {
-  auctionPhase = "top";
-
-  // prepare allocation pools
-  remainingTopPlayers = [...topPlayers];
-  availableTeamsForTop = Object.keys(bidders); // captains
-  topAllocationIndex = 0;
-
-  if (remainingTopPlayers.length !== availableTeamsForTop.length) {
-  alert("Top players count must match number of teams");
-}
-
-   allocateNextTopPlayer();
-});
-
-  }
-}
 
 function showResultMessage(msg, timeout = 3000) {
   result.textContent = msg;
@@ -373,24 +327,6 @@ addPlayerBtn.addEventListener("click", () => {
   openPlayerDataModal(name);
 });
 
-addTopPlayerBtn.addEventListener("click", () => {
-  const name = topPlayerInput.value.trim();
-  if (!name) return;
-
-  if (
-    topPlayers.map(p => p.toLowerCase()).includes(name.toLowerCase()) ||
-    players.map(p => p.toLowerCase()).includes(name.toLowerCase())
-  ) {
-    alert("Player already exists");
-    return;
-  }
-
-  topPlayers.push(name);
-  topPlayerInput.value = "";
-  renderTopPlayers();
-});
-
-
 
 pdConfirm.addEventListener("click", () => {
   const name = pdName.value.trim();
@@ -447,22 +383,6 @@ pdCancel.addEventListener("click", closePlayerDataModal);
     playerList.appendChild(grid);
   }
 
-  function renderTopPlayers() {
-  topPlayerList.innerHTML = "";
-  topPlayerCount.textContent = topPlayers.length;
-
-  const grid = document.createElement("div");
-  grid.className = "player-grid";
-
-  topPlayers.forEach(p => {
-    const chip = document.createElement("button");
-    chip.className = "player-chip";
-    chip.textContent = p;
-    grid.appendChild(chip);
-  });
-
-  topPlayerList.appendChild(grid);
-}
 
 function glowTeamPanel(team) {
   const panel = document.querySelector(`[data-team="${team}"]`);
@@ -568,7 +488,6 @@ card.dataset.team = bidder;
   let timeLeft = 0;
   let timerRunning = false;
   let extraTimeCount = 0;
-  let auctionPhase = "normal"; // "normal" | "top"
   let remainingTopPlayers = [];
   let availableTeamsForTop = [];
   let topAllocationIndex = 0;
@@ -777,7 +696,6 @@ function startSoldAnimation({ player, bidder, amount }) {
 
     // 🔑 restore auction UI
     renderAuctionIdle();
-    checkNormalAuctionCompleted();
   }, 4000);
 
   registerSoldTimeout(exitTimeout);
@@ -825,7 +743,6 @@ startSoldAnimation({
     result.textContent = "";
     if (!players.length && !unsoldPlayers.length) {
   result.textContent = "All players sold!";
-  checkNormalAuctionCompleted();
   return;
 }
 
@@ -885,7 +802,6 @@ function skipCurrentPlayer() {
 
   renderAuctionIdle();
   showUndoToast("skipped");
-  checkNormalAuctionCompleted();
 }
 
 
@@ -898,6 +814,8 @@ function reduceBid() {
 }
 
 function undoLastSale() {
+  clearSoldState();
+
   if (!lastSale) {
     alert("Nothing to undo");
     return;
@@ -957,76 +875,7 @@ if (pendingPlayer && pendingPlayer !== player) {
 
 }
 
-function allocateNextTopPlayer() {
-  if (!topAllocationActive) return;
-  if (topAllocIndex >= topPlayers.length) return;
 
-  const availableTeams = Object.keys(bidders).filter(
-    t => !allocatedTopTeams.has(t)
-  );
-
-  if (!availableTeams.length) return;
-
-  const team =
-    availableTeams[Math.floor(Math.random() * availableTeams.length)];
-
-  const player = topPlayers[topAllocIndex];
-
-  bidderTeams[team].push(player);
-  allocatedTopTeams.add(team);
-  topAllocIndex++;
-
-  updateLeaderboard();
-
-  if (topAllocIndex === topPlayers.length) {
-    topAllocationActive = false;
-    result.textContent = "⭐ Top Player Allocation Completed";
-  }
-}
-
-function allocateNextTopPlayer() {
-  // 🛡 SAFETY CHECKS
-  if (auctionPhase !== "top") return;
-  if (!remainingTopPlayers.length) {
-    showTopAllocationCompleted();
-    return;
-  }
-  if (!availableTeamsForTop.length) return;
-
-  const player = remainingTopPlayers.shift();
-
-  const teamIndex = Math.floor(Math.random() * availableTeamsForTop.length);
-  const team = availableTeamsForTop.splice(teamIndex, 1)[0];
-
-  revealForAuction(player, () => {
-
-  // ⏸️ small pause so user reads name
-  setTimeout(() => {
-
-    flyNameToTeam(player, team, () => {
-
-      // ✅ NOW add to team (after animation)
-      bidderTeams[team].push(player);
-      updateLeaderboard();
-
-      // ✨ glow ONLY that team
-      glowTeamPanel(team);
-
-      // 🧹 remove reveal card AFTER name landed
-      removeRevealCard();
-
-      setTimeout(() => {
-        removeGlowFromTeam(team);
-        allocateNextTopPlayer();
-      }, 3600);
-
-    });
-
-  }, 800); // ← VERY IMPORTANT pause
-});
-
-
-}
 
   /* =======================
      CINEMATIC REVEAL
@@ -1082,8 +931,8 @@ if (logoEl.src) front.appendChild(logoEl);
 
  const flipDelay = 2600;
 const nameDelay = 3200;
-const vanishDelay =
-  auctionPhase === "top" ? 2500 : 1800;
+const vanishDelay = 1800;
+
 
 registerTimeout(setTimeout(() => {
   card.classList.add("flipped");
@@ -1211,6 +1060,5 @@ clone.getBoundingClientRect(); // 🔥 forces browser to paint
   renderUnsold();
   updateLeaderboard();
   renderAuctionIdle();
-  renderTopPlayers();
 
 });
