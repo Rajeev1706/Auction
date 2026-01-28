@@ -169,7 +169,7 @@ const topPlayerCount = document.getElementById("topPlayerCount");
       return;
     }
 
-    bidders[captain] = 1000;
+    bidders[captain] = 1200;
     bidderTeams[captain] = [];
     teamMeta[captain] = {
       teamName: teamNameInput.value.trim(),
