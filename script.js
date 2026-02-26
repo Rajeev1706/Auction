@@ -259,7 +259,7 @@ const undoBtn = document.getElementById("undoActionBtn");
     return;
   }
 
-  bidders[newCaptain] = 1200;
+  bidders[newCaptain] = 1800;
   bidderTeams[newCaptain] = [];
   teamMeta[newCaptain] = {
     teamName,
