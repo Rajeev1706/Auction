@@ -664,13 +664,15 @@ justify-content: center;
 }
 
 .sold-logo {
-  width: 64px;
-  height: 64px;
+  width: 120px;          /* 🔥 bigger */
+  height: 120px;
   border-radius: 50%;
   object-fit: cover;
-  background: #fff;
-  border: 2px solid #e0e0e0;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  background: #000;
+  border: 3px solid rgba(255,255,255,0.8);
+  box-shadow:
+    0 0 25px rgba(255,255,255,0.35),
+    0 0 45px rgba(255,215,0,0.35);
 }
 
 .sold-arrow {
@@ -685,18 +687,33 @@ justify-content: center;
 }
 
 .sold-player-name {
-  font-size: 26px;
+  font-size: 42px;              /* 🔥 bigger for full screen */
   font-weight: 900;
-  margin-bottom: 12px;
-  transition: all 400ms ease;
+  color: #ffffff;               /* ✅ pure white */
+  text-align: center;
+  letter-spacing: 2px;
+  margin-bottom: 18px;
+
+  text-shadow:
+    0 0 12px rgba(255,255,255,0.6),
+    0 0 28px rgba(255,215,0,0.45),
+    0 4px 18px rgba(0,0,0,0.9);
 }
 
 .sold-price {
   font-size: 24px;
   font-weight: 900;
   margin-top: 14px;
-  color: #2e7d32;
+  color: #ffffff;
   transition: all 400ms ease;
+}
+
+.reveal-overlay .sold-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 }
 
 .hidden {

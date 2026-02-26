@@ -4,12 +4,17 @@
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
 
-  // 1️⃣ Reveal has highest priority
+  // 🔥 Sold reveal has highest priority
+  if (soldRevealState.overlay) {
+    skipSoldRevealAnimation();
+    return;
+  }
+
+  // 🔥 Normal reveal
   if (revealState.active) {
     skipRevealAnimation();
     return;
   }
-
 });
 
 
@@ -28,6 +33,25 @@ let soldState = {
   timeouts: [],
   done: null
 };
+
+let retentionState = {
+  active: false,
+  player: null,
+  prevTeam: null,
+  highestBidder: null,
+  currentBid: 0,
+  timer: null,
+  timeLeft: 0,
+  phase: null
+};
+
+let soldRevealState = {
+  active: false,
+  overlay: null,
+  timeouts: [],
+  done: null
+};
+
 
 function registerSoldTimeout(id) {
   soldState.timeouts.push(id);
@@ -99,13 +123,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const playerMeta = {};
   const teamLogos = {
   barca: "logos/barca.png",
-  psg: "logos/psg.png",
+  acmilan: "logos/ac milan.png",
   rm: "logos/realmadrid.png",
   manutd: "logos/manutd.png",
-  mancity: "logos/mancity.png",
-  liverpool: "logos/liverpool.png",
+  bayern: "logos/Bayern munich.png",
+  bvb: "logos/bvb.png",
   chelsea: "logos/chelsea.png",
-  santos: "logos/santos.png"
+  intermilan: "logos/Inter-Milan.png"
 };
 
 
@@ -158,35 +182,104 @@ const undoBtn = document.getElementById("undoActionBtn");
   teamClose.onclick = teamCancel.onclick = () => teamModal.classList.add("hidden");
 
   teamConfirmBtn.onclick = () => {
-    const captain = teamCaptainInput.value.trim();
-    if (!captain || bidders[captain]) {
-      alert("Invalid or duplicate captain");
-      return;
-    }
+  const newCaptain = teamCaptainInput.value.trim();
+  const teamName = teamNameInput.value.trim();
 
-    bidders[captain] = 1200;
-    bidderTeams[captain] = [];
-    teamMeta[captain] = {
-      teamName: teamNameInput.value.trim(),
-      logo: null
-    };
+  if (!newCaptain) {
+    alert("Captain name required");
+    return;
+  }
+
+  /* =======================
+     EDIT MODE
+     ======================= */
+  if (editingTeam) {
+  const oldCaptain = editingTeam;
+
+  // 🛑 CASE 1: Captain name NOT changed
+  if (newCaptain === oldCaptain) {
+    teamMeta[oldCaptain].teamName = teamName;
 
     const file = teamLogoInput.files[0];
     if (file) {
       const r = new FileReader();
       r.onload = e => {
-        teamMeta[captain].logo = e.target.result;
+        teamMeta[oldCaptain].logo = e.target.result;
         updateLeaderboard();
       };
       r.readAsDataURL(file);
     }
 
-    teamCaptainInput.value = "";
-    teamNameInput.value = "";
-    teamLogoInput.value = "";
+    editingTeam = null;
+    teamConfirmBtn.textContent = "Add Team";
     teamModal.classList.add("hidden");
     updateLeaderboard();
+    return;
+  }
+
+  // 🛑 CASE 2: Captain name CHANGED
+  if (bidders[newCaptain]) {
+    alert("Captain already exists");
+    return;
+  }
+
+  bidders[newCaptain] = bidders[oldCaptain];
+  bidderTeams[newCaptain] = bidderTeams[oldCaptain];
+  teamMeta[newCaptain] = {
+    ...teamMeta[oldCaptain],
+    teamName
   };
+
+  delete bidders[oldCaptain];
+  delete bidderTeams[oldCaptain];
+  delete teamMeta[oldCaptain];
+
+  const file = teamLogoInput.files[0];
+  if (file) {
+    const r = new FileReader();
+    r.onload = e => {
+      teamMeta[newCaptain].logo = e.target.result;
+      updateLeaderboard();
+    };
+    r.readAsDataURL(file);
+  }
+
+  editingTeam = null;
+  teamConfirmBtn.textContent = "Add Team";
+  teamModal.classList.add("hidden");
+  updateLeaderboard();
+  return;
+}
+
+  /* =======================
+     ADD MODE (existing)
+     ======================= */
+  if (bidders[newCaptain]) {
+    alert("Duplicate captain");
+    return;
+  }
+
+  bidders[newCaptain] = 1200;
+  bidderTeams[newCaptain] = [];
+  teamMeta[newCaptain] = {
+    teamName,
+    logo: null,
+    retentionUsed: false
+  };
+
+  const file = teamLogoInput.files[0];
+  if (file) {
+    const r = new FileReader();
+    r.onload = e => {
+      teamMeta[newCaptain].logo = e.target.result;
+      updateLeaderboard();
+    };
+    r.readAsDataURL(file);
+  }
+
+  teamModal.classList.add("hidden");
+  updateLeaderboard();
+};
 
   /* =======================
      HELPERS
@@ -309,7 +402,25 @@ function clearSoldSummary() {
   auctionSection.innerHTML = "";
 }
 
+function registerSoldRevealTimeout(id) {
+  soldRevealState.timeouts.push(id);
+}
 
+function skipSoldRevealAnimation() {
+  soldRevealState.timeouts.forEach(clearTimeout);
+  soldRevealState.timeouts = [];
+
+  if (soldRevealState.overlay) {
+    soldRevealState.overlay.remove();
+    soldRevealState.overlay = null;
+  }
+
+  soldRevealState.active = false;
+
+  if (typeof soldRevealState.done === "function") {
+    soldRevealState.done();
+  }
+}
 
 
   /* =======================
@@ -324,26 +435,90 @@ addPlayerBtn.addEventListener("click", () => {
     return;
   }
 
-  openPlayerDataModal(name);
+  openPlayerDataModal(name, false);
 });
 
 
 pdConfirm.addEventListener("click", () => {
-  const name = pdName.value.trim();
-  if (!name) return;
+  const newName = pdName.value.trim();
+  if (!newName) return;
 
   const cardType = pdCardType.value;
   const prevTeam = document.getElementById("pdPrevTeam").value || null;
 
-  players.push(name);
+  /* =======================
+     EDIT MODE
+     ======================= */
+  if (editingPlayer) {
+    const oldName = editingPlayer;
 
-  playerMeta[name] = {
+    // 🛑 duplicate name check
+    if (
+      newName !== oldName &&
+      players.some(p => p.toLowerCase() === newName.toLowerCase())
+    ) {
+      alert("Player name already exists");
+      return;
+    }
+
+    // 🔄 rename inside players[]
+    const idx = players.indexOf(oldName);
+    if (idx !== -1) {
+      players[idx] = newName;
+    }
+
+    // 🔄 migrate metadata
+    playerMeta[newName] = {
+      cardType,
+      prevTeam
+    };
+    delete playerMeta[oldName];
+
+    // 🔄 update teams
+    Object.keys(bidderTeams).forEach(team => {
+      const t = bidderTeams[team];
+      const pIdx = t.indexOf(oldName);
+      if (pIdx !== -1) {
+        t[pIdx] = newName;
+      }
+    });
+
+    // 🔄 update sold history
+    soldHistory.forEach(s => {
+      if (s.player === oldName) {
+        s.player = newName;
+      }
+    });
+    renderSoldHistory();
+
+    // 🔄 update live auction references
+    if (currentPlayer === oldName) currentPlayer = newName;
+    if (pendingPlayer === oldName) pendingPlayer = newName;
+
+    editingPlayer = null;
+    renderPlayers();
+    updateLeaderboard();
+    closePlayerDataModal();
+    return;
+  }
+
+  /* =======================
+     ADD MODE
+     ======================= */
+  if (
+    players.some(p => p.toLowerCase() === newName.toLowerCase())
+  ) {
+    alert("Player already exists");
+    return;
+  }
+
+  players.push(newName);
+  playerMeta[newName] = {
     cardType,
     prevTeam
   };
 
   renderPlayers();
-  playerInput.value = "";
   closePlayerDataModal();
 });
 
@@ -351,37 +526,72 @@ pdConfirm.addEventListener("click", () => {
 
 
   // Open player data modal instead of adding directly
-  function openPlayerDataModal(name) {
+  function openPlayerDataModal(name, isEdit = false) {
   pdName.value = name;
-  pdCardType.value = "silver";
+  pdCardType.value = playerMeta[name]?.cardType || "silver";
+  document.getElementById("pdPrevTeam").value =
+    playerMeta[name]?.prevTeam || "";
+
+  editingPlayer = isEdit ? name : null;
+
+  pdName.readOnly = false;// prevent renaming for now (safe)
+  pdConfirm.textContent = isEdit ? "Save Changes" : "Add";
 
   pdModal.classList.remove("hidden");
 }
 
 function closePlayerDataModal() {
+  editingPlayer = null;
+  pdConfirm.textContent = "Add";
   pdModal.classList.add("hidden");
 }
 pdClose.addEventListener("click", closePlayerDataModal);
 pdCancel.addEventListener("click", closePlayerDataModal);
 
 
+function openTeamEditModal(captain) {
+  editingTeam = captain;
+
+  const meta = teamMeta[captain];
+
+  teamCaptainInput.value = captain;
+  teamNameInput.value = meta.teamName || "";
+  teamLogoInput.value = "";
+
+  teamConfirmBtn.textContent = "Save Changes";
+  teamModal.classList.remove("hidden");
+}
+
+
+teamClose.onclick = teamCancel.onclick = () => {
+  editingTeam = null;
+  teamConfirmBtn.textContent = "Add Team";
+  teamModal.classList.add("hidden");
+};
+
 
 
   function renderPlayers() {
-    playerList.innerHTML = "";
-      updatePlayerCount();
-    const grid = document.createElement("div");
-    grid.className = "player-grid";
+  playerList.innerHTML = "";
+  updatePlayerCount();
 
-    players.forEach(p => {
-      const chip = document.createElement("button");
-      chip.className = "player-chip";
-      chip.textContent = p;
-      grid.appendChild(chip);
-    });
+  const grid = document.createElement("div");
+  grid.className = "player-grid";
 
-    playerList.appendChild(grid);
-  }
+  players.forEach(p => {
+    const chip = document.createElement("button");
+    chip.className = "player-chip";
+    chip.textContent = p;
+
+    chip.onclick = () => {
+      openPlayerDataModal(p, true); // 🔥 EDIT MODE
+    };
+
+    grid.appendChild(chip);
+  });
+
+  playerList.appendChild(grid);
+}
 
 
 function glowTeamPanel(team) {
@@ -457,6 +667,10 @@ function renderSoldHistory() {
       const card = document.createElement("div");
 card.className = "team-leader";
 card.dataset.team = bidder;
+card.onclick = () => {
+  if (revealState.active || soldState.active) return;
+  openTeamEditModal(bidder);
+};
       card.innerHTML = `
         ${meta.logo ? `<img class="circle-logo" src="${meta.logo}">` : ""}
         <div class="team-info">
@@ -480,6 +694,7 @@ card.dataset.team = bidder;
   let currentBid = 25;
   let currentBidder = null;
   let lastSale = null;
+  let auctionLocked = false;
   let lastSkip = null;
   let undoTimer = null;
   let lastActionType = null; // "sold" | "skipped"
@@ -493,6 +708,9 @@ card.dataset.team = bidder;
   let topAllocationIndex = 0;
   let allocatedTopTeams = new Set();
   let topAllocIndex = 0;
+  let editingPlayer = null;
+  let editingTeam = null;
+  
 
 
 
@@ -712,7 +930,33 @@ function endAuction() {
   if (!currentBidder) {
     unsoldPlayers.push(currentPlayer);
     result.textContent = `❌ No bids for ${currentPlayer}`;
-  } else {
+    renderAuctionIdle();
+    return;
+  }
+
+  const meta = playerMeta[currentPlayer] || {};
+  const prevTeam = meta.prevTeam;
+
+  const canRetain =
+    prevTeam &&
+    prevTeam !== currentBidder &&
+    teamMeta[prevTeam] &&
+    teamMeta[prevTeam].retentionUsed === false;
+
+  if (canRetain) {
+    // 🔐 ACTIVATE RETENTION (no UI yet)
+    retentionState.active = true;
+    retentionState.player = currentPlayer;
+    retentionState.prevTeam = prevTeam;
+    retentionState.highestBidder = currentBidder;
+    retentionState.currentBid = currentBid;
+    retentionState.phase = "decision";
+
+    auctionLocked = true;
+    return; // ⛔ stop normal sale
+  }
+
+  // ✅ NORMAL SALE
   bidders[currentBidder] -= currentBid;
   bidderTeams[currentBidder].push(currentPlayer);
 
@@ -722,22 +966,81 @@ function endAuction() {
     amount: currentBid
   };
 
-  soldHistory.unshift(sale); // newest on top
+  soldHistory.unshift(sale);
   renderSoldHistory();
 
   lastSale = sale;
 
- updateLeaderboard();
-showUndoToast("sold");
+  updateLeaderboard();
+  showUndoToast("sold");
 
-startSoldAnimation({
+  showSoldFullScreen({
   player: currentPlayer,
   bidder: currentBidder,
   amount: currentBid
 });
 }
-}
 
+function showSoldFullScreen({ player, bidder, amount }) {
+  soldRevealState.active = true;
+  soldRevealState.timeouts = [];
+
+  soldRevealState.done = () => {
+    soldRevealState.active = false;
+    renderAuctionIdle(); // ✅ automatically return
+  };
+
+  const meta = playerMeta[player] || {};
+  const prevTeam = meta.prevTeam;
+  const prevLogo = prevTeam ? teamLogos[prevTeam] : null;
+  const newLogo = teamMeta[bidder]?.logo || null;
+
+  const overlay = document.createElement("div");
+  overlay.className = "reveal-overlay"; // 🔥 reuse same black background
+  soldRevealState.overlay = overlay;
+
+  overlay.innerHTML = `
+    <div class="sold-summary">
+      <div class="sold-player-name hidden">${player}</div>
+
+      <div class="sold-transfer-row">
+        ${prevLogo ? `<img class="sold-logo hidden" id="prevLogo" src="${prevLogo}">` : ""}
+        <span class="sold-arrow hidden" id="soldArrow">➜</span>
+        ${newLogo ? `<img class="sold-logo hidden" id="newLogo" src="${newLogo}">` : ""}
+      </div>
+
+      <div class="sold-price hidden">₹${amount}</div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // 🎬 TIMED SEQUENCE
+  registerSoldRevealTimeout(setTimeout(() => {
+    overlay.querySelector(".sold-player-name")?.classList.remove("hidden");
+  }, 400));
+
+  registerSoldRevealTimeout(setTimeout(() => {
+    overlay.querySelector("#prevLogo")?.classList.remove("hidden");
+  }, 800));
+
+  registerSoldRevealTimeout(setTimeout(() => {
+    overlay.querySelector("#soldArrow")?.classList.remove("hidden");
+  }, 1200));
+
+  registerSoldRevealTimeout(setTimeout(() => {
+    overlay.querySelector("#newLogo")?.classList.remove("hidden");
+  }, 1600));
+
+  registerSoldRevealTimeout(setTimeout(() => {
+    overlay.querySelector(".sold-price")?.classList.remove("hidden");
+  }, 2000));
+
+  // ⏱ AUTO EXIT
+  registerSoldRevealTimeout(setTimeout(() => {
+    skipSoldRevealAnimation();
+  }, 4200));
+}
 
   function startAuction() {
     result.textContent = "";
@@ -791,7 +1094,22 @@ function skipCurrentPlayer() {
   lastSkip = currentPlayer;
   unsoldPlayers.push(currentPlayer);
   renderUnsold();
-  pendingPlayer = null;
+  function skipCurrentPlayer() {
+  if (!currentPlayer) return;
+
+  lastSkip = currentPlayer;
+  unsoldPlayers.push(currentPlayer);
+  renderUnsold();
+
+  result.textContent = `⏭ ${currentPlayer} skipped`;
+
+  currentPlayer = null;
+  currentBid = 25;
+  currentBidder = null;
+
+  renderAuctionIdle();
+  showUndoToast("skipped");
+}
 
 
   result.textContent = `⏭ ${currentPlayer} skipped`;
@@ -813,6 +1131,31 @@ function reduceBid() {
   }
 }
 
+function undoSkippedPlayer() {
+  if (!lastSkip) {
+    alert("Nothing to undo");
+    return;
+  }
+
+  // remove from unsold list
+  const idx = unsoldPlayers.lastIndexOf(lastSkip);
+  if (idx !== -1) {
+    unsoldPlayers.splice(idx, 1);
+  }
+
+  renderUnsold();
+
+  // restore auction state
+  currentPlayer = lastSkip;
+  currentBid = 25;
+  currentBidder = null;
+
+  lastSkip = null;
+
+  showLiveBidding();
+  showResultMessage(`↺ Undo: ${currentPlayer} restored to auction`, 3000);
+}
+
 function undoLastSale() {
   clearSoldState();
 
@@ -820,15 +1163,6 @@ function undoLastSale() {
     alert("Nothing to undo");
     return;
   }
-
-  function undoSkippedPlayer() {
-  if (!lastSkip) return;
-
-  currentPlayer = lastSkip;
-  lastSkip = null;
-
-  showLiveBidding();
-}
 
 
   const { player, bidder, amount } = lastSale;
