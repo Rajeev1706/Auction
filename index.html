@@ -7,7 +7,10 @@
 </head>
 <body>
 
-<h1>Efootball⚽</h1>
+<h1>
+  <img id="site-logo" src="logo.png" alt="logo" />
+  Tamil Efootballers
+</h1>
 
 <div class="page-layout">
 
@@ -74,6 +77,7 @@
 <select id="pdCardType">
   <option value="silver">Silver</option>
   <option value="gold">Gold</option>
+  <option value="purple">Purple</option>
 </select>
 
 <label>Previous Season Team</label>
@@ -82,10 +86,10 @@
   <option value="barca">Barcelona</option>
   <option value="acmilan">Ac Milan</option>
   <option value="rm">Real Madrid</option>
-  <option value="manutd">Man United</option>
+  <option value="mancity">man city</option>
   <option value="bayern">Bayern Munich</option>
-  <option value="bvb">Bvb</option>
-  <option value="chelsea">Chelsea</option>
+  <option value="Leeds">leeds</option>
+  <option value="Leverkusen">leverkusen</option>
   <option value="intermilan">Inter milan</option>
 </select>
 
@@ -120,6 +124,14 @@
   <button id="undoActionBtn">Undo</button>
 </div>
 
+<!-- CLEAR DATA FOOTER -->
+<div id="clearDataFooter">
+  <button id="clearDataBtn">🗑️ Clear All Data &amp; Reset</button>
+  <p id="clearDataHint">This will permanently wipe all teams, players, bids and history.</p>
+</div>
+
+<!-- SAVE INDICATOR -->
+<div id="saveIndicator">💾 Saved</div>
 
 <script src="script.js"></script>
 </body>

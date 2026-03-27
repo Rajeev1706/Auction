@@ -29,6 +29,17 @@ h1 {
   margin: 6px 0 20px;
   font-size: 34.5px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+#site-logo {
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 button {
@@ -154,14 +165,13 @@ button.danger { background: var(--danger); }
 
 
 .bid-row {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr auto;
-  gap: 10px;
+  display: flex;
   align-items: center;
+  gap: 10px;
   background: #f4f8ff;
   border: 1px solid #d0e0ff;
   border-radius: 10px;
-  padding: 10px;
+  padding: 10px 14px;
   margin-bottom: 10px;
 }
 
@@ -336,6 +346,10 @@ button.danger { background: var(--danger); }
   margin: 0;
   font-size: 15px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .team-info p {
@@ -501,12 +515,40 @@ button.danger { background: var(--danger); }
   overflow: hidden;
 }
 
+.reveal-bg-logo {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  filter: blur(22px) brightness(0.25) saturate(1.4);
+  transition: opacity 1.2s ease;
+  pointer-events: none;
+}
+
+.reveal-bg-logo.visible {
+  opacity: 1;
+}
+
+.reveal-stars-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .reveal-card {
   width: 439px;
   height: 648px;
   perspective: 1600px;
   background: none;
   box-shadow: none;
+  position: relative;
+  z-index: 1;
 }
 
 .reveal-card-inner {
@@ -563,9 +605,239 @@ button.danger { background: var(--danger); }
    REMAINS EXACTLY THE SAME AS YOU SHARED EARLIER
 */
 
-/* =======================
-   RESPONSIVE
-   ======================= */
+/* Top 5 player rank glows — rank 1 only */
+.rank-crown { font-size: 11px; margin-right: 3px; }
+
+.top-player-rank-1 {
+  background: linear-gradient(135deg, #ffd700, #ff8c00);
+  color: #3a1a00;
+  border: none;
+  animation: rankGlow1 1.4s ease-in-out infinite alternate;
+  font-weight: 800;
+}
+@keyframes rankGlow1 {
+  from { box-shadow: 0 0 6px rgba(255,200,0,.6); }
+  to   { box-shadow: 0 0 18px rgba(255,160,0,.95); }
+}
+
+/* ⑥ Top 10 End Screen */
+.top10-screen { padding: 4px 0 8px; }
+.top10-title {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #b8860b;
+  margin-bottom: 14px;
+}
+.top10-list { display: flex; flex-direction: column; gap: 7px; }
+.top10-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  border: 1px solid #eee;
+  transition: transform 0.15s;
+}
+.top10-row:hover { transform: translateX(3px); }
+.top10-rank {
+  width: 28px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.top10-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.top10-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.top10-name {
+  font-weight: 800;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.top10-team {
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.top10-price {
+  font-weight: 900;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.bidding-war-banner {
+  background: linear-gradient(135deg, #ff6b00, #e53935);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  text-align: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  animation: warPulse 0.7s ease infinite alternate;
+}
+.intruder-banner {
+  background: linear-gradient(135deg, #6a0dad, #c0392b) !important;
+  animation: intruderPulse 0.6s ease infinite alternate !important;
+}
+@keyframes intruderPulse {
+  from { transform: scale(1);    box-shadow: 0 0 8px rgba(150,0,200,.4); }
+  to   { transform: scale(1.02); box-shadow: 0 0 22px rgba(150,0,200,.8); }
+}
+.intruder-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.85;
+  margin-top: 3px;
+}
+.bid-row-war {
+  border: 1.5px solid #ff6b00 !important;
+  background: #fff5f0 !important;
+}
+
+/* ③ Budget Warning */
+.team-leader.low-budget {
+  border: 1.5px solid #e53935;
+  animation: budgetFlash 1.4s ease infinite;
+}
+@keyframes budgetFlash {
+  0%,100% { box-shadow: none; }
+  50%      { box-shadow: 0 0 14px rgba(229,57,53,.55); }
+}
+.low-budget-badge {
+  background: #e53935;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ④ Bid Log */
+.bid-log {
+  background: #f4f8ff;
+  border: 1px solid #d0e0ff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  max-height: 110px;
+  overflow-y: auto;
+}
+.bid-log-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+  color: #444;
+  border-bottom: 1px solid rgba(0,0,0,.04);
+}
+.bid-log-entry:last-child { border-bottom: none; }
+.bid-log-latest { font-weight: 700; color: #0056b3; }
+.bid-log-bidder { font-weight: 600; min-width: 90px; }
+.bid-log-arrow  { color: #aaa; }
+.bid-log-amount { color: #28a745; font-weight: 700; }
+
+/* ⑤ Crown Badge */
+.crown-badge { margin-right: 3px; font-size: 14px; }
+
+/* ⑦ Strength Meter */
+.strength-meter {
+  height: 5px;
+  background: #e8eef5;
+  border-radius: 999px;
+  margin: 5px 0 6px;
+  overflow: hidden;
+}
+.strength-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #007bff, #00c6ff);
+  border-radius: 999px;
+  transition: width 0.6s ease;
+  min-width: 4px;
+}
+
+/* ⑥ Summary Screen */
+.summary-screen { padding: 8px 0; }
+.summary-title {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 16px;
+  color: #c9860a;
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.summary-card {
+  display: flex;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e0eaff;
+  border-radius: 12px;
+  padding: 12px;
+}
+.summary-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.summary-team-name {
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+.summary-captain { font-size: 12px; color: #666; margin-bottom: 6px; }
+.summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+.summary-top {
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 5px;
+}
+.summary-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+
 /* ===============================
    FINAL REVEAL CARD FIX (REQUIRED)
    =============================== */
@@ -626,6 +898,19 @@ align-items: center;
 justify-content: center;
 }
 
+.reveal-card.purple .reveal-card-back {
+  background-image: url("pbackside.png");
+  filter: none;
+}
+
+.reveal-card.purple .reveal-card-front {
+  background-image: url("poutline.png");
+  filter: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 
 .reveal-card.flipped .reveal-card-inner {
   transform: rotateY(180deg);
@@ -673,6 +958,14 @@ justify-content: center;
   box-shadow:
     0 0 25px rgba(255,255,255,0.35),
     0 0 45px rgba(255,215,0,0.35);
+}
+
+.sold-no-team {
+  background: rgba(255, 255, 255, 0.12);
+  border: 2.5px dashed rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sold-arrow {
@@ -748,6 +1041,31 @@ justify-content: center;
   transform: translate(-50%, -58%) scale(0.9);
 }
 
+.gold-reveal-overlay {
+  position: absolute;
+  inset: 0;
+  background: url("outline.png") center/100% 100% no-repeat;
+  clip-path: inset(0 0 0 100%);
+  transition: clip-path 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+  z-index: 0;
+  border-radius: 5px;
+}
+
+.purple-reveal-overlay {
+  position: absolute;
+  inset: 0;
+  background: url("poutline.png") center/100% 100% no-repeat;
+  filter: none;
+  clip-path: inset(0 0 0 100%);
+  transition: clip-path 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+  z-index: 0;
+  border-radius: 5px;
+}
+
+.reveal-player-name,
+.reveal-team-logo {
+  z-index: 1;
+}
 
 .reveal-player-name {
   position: absolute;
@@ -778,6 +1096,8 @@ justify-content: center;
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
 }
+
+
 
 .undo-toast {
   position: fixed;
@@ -836,4 +1156,536 @@ justify-content: center;
   .page-layout {
     grid-template-columns: 1fr;
   }
+}
+/* =======================
+   CLEAR DATA FOOTER
+   ======================= */
+
+#clearDataFooter {
+  max-width: 1500px;
+  margin: 40px auto 24px;
+  text-align: center;
+  padding: 28px 20px;
+  border-top: 2px dashed #e0e0e0;
+}
+
+#clearDataBtn {
+  background: linear-gradient(135deg, #c0392b, #922b21);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 14px 36px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  letter-spacing: 0.4px;
+  box-shadow: 0 4px 18px rgba(192, 57, 43, 0.35);
+  transition: transform 0.15s, box-shadow 0.15s, background 0.2s;
+}
+
+#clearDataBtn:hover {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(192, 57, 43, 0.5);
+}
+
+#clearDataBtn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(192, 57, 43, 0.3);
+}
+
+#clearDataHint {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: #aaa;
+  font-style: italic;
+}
+
+/* =======================
+   SAVE INDICATOR
+   ======================= */
+
+#saveIndicator {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  background: #28a745;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 9999;
+  box-shadow: 0 2px 10px rgba(40,167,69,0.4);
+}
+
+#saveIndicator.visible {
+  opacity: 1;
+}
+
+/* =======================
+   FEATURE: BID ROW REDESIGN (badges)
+   ======================= */
+
+.bid-row-header {
+  flex: 0 0 auto;
+  min-width: 100px;
+  max-width: 160px;
+}
+
+.bid-captain-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #222;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bid-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  flex-wrap: nowrap;
+}
+
+.bid-row-controls .bid-plus {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.bid-row-controls .bid-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.bid-row-controls .bid-set {
+  flex-shrink: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 3px 10px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.badge-aggressive {
+  background: linear-gradient(135deg, #ff6b00, #e53935);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(255, 107, 0, 0.4);
+  animation: aggressivePulse 1.6s ease-in-out infinite;
+}
+
+.badge-rival {
+  background: linear-gradient(135deg, #6a0dad, #b44fff);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(180, 79, 255, 0.4);
+}
+
+.bid-row-aggressive {
+  border-color: #ff6b00 !important;
+  background: rgba(255, 107, 0, 0.04) !important;
+}
+
+@keyframes aggressivePulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(255,107,0,0.4); }
+  50%       { box-shadow: 0 2px 18px rgba(255,107,0,0.75); }
+}
+
+/* =======================
+   FEATURE: SCREEN SHAKE
+   ======================= */
+
+@keyframes auctionShake {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  15%  { transform: translate(-5px, 1px) rotate(-0.4deg); }
+  30%  { transform: translate(5px, -1px) rotate(0.4deg); }
+  45%  { transform: translate(-4px, 2px) rotate(-0.3deg); }
+  60%  { transform: translate(4px, -2px) rotate(0.3deg); }
+  75%  { transform: translate(-3px, 1px) rotate(-0.2deg); }
+  90%  { transform: translate(3px, -1px) rotate(0.2deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.auction-shake {
+  animation: auctionShake 0.5s ease;
+}
+
+
+/* =======================
+   FEATURE 1: SPENDING RATE ALERT
+   ======================= */
+
+.spending-alert {
+  background: linear-gradient(135deg, #7b2d00, #e65c00);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 16px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  text-align: center;
+  animation: spendingPulse 2s ease-in-out infinite;
+  box-shadow: 0 3px 12px rgba(230,92,0,0.4);
+}
+
+@keyframes spendingPulse {
+  0%, 100% { box-shadow: 0 3px 12px rgba(230,92,0,0.4); }
+  50%       { box-shadow: 0 3px 22px rgba(230,92,0,0.75); }
+}
+
+/* =======================
+   FEATURE 2: MOST CONTESTED PLAYER
+   ======================= */
+
+.contested-panel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #1a0050, #4a0080);
+  color: #e0c3ff;
+  border: 1px solid #7b2fbe;
+  border-radius: 8px;
+  padding: 9px 16px;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.contested-panel strong {
+  color: #d4aaff;
+  font-size: 14px;
+}
+
+.contested-count {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(255,255,255,0.12);
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: #fff;
+}
+
+.contested-active {
+  border-color: #b44fff;
+  background: linear-gradient(135deg, #2a0060, #6a00c0);
+  animation: contestedGlow 1.4s ease-in-out infinite;
+}
+
+@keyframes contestedGlow {
+  0%, 100% { box-shadow: 0 0 0 rgba(180,79,255,0); }
+  50%       { box-shadow: 0 0 18px rgba(180,79,255,0.5); }
+}
+
+/* =======================
+   FEATURE 3: QUIETEST TEAM BADGE
+   ======================= */
+
+.badge-quiet {
+  background: linear-gradient(135deg, #2c3e50, #4a6078);
+  color: #b0c4de;
+  border: 1px solid #607d8b;
+}
+
+.bid-row-quiet {
+  opacity: 0.82;
+  border-color: #607d8b !important;
+}
+
+/* =======================
+   STORY BANNERS OVERLAY (4–11)
+   ======================= */
+
+.story-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: rgba(0,0,0,0.72);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  cursor: pointer;
+  padding: 30px;
+}
+
+.story-overlay.visible {
+  opacity: 1;
+}
+
+.story-overlay.fade-out {
+  opacity: 0;
+}
+
+.story-card {
+  border-radius: 18px;
+  padding: 26px 40px;
+  text-align: center;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  max-width: 640px;
+  width: 100%;
+  animation: storyCardIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+.story-card + .story-card {
+  animation-delay: 0.12s;
+}
+
+.story-card-record {
+  animation: storyCardIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both,
+             recordGlow 1.5s ease-in-out 0.5s infinite;
+}
+
+@keyframes storyCardIn {
+  from { transform: scale(0.7) translateY(30px); opacity: 0; }
+  to   { transform: scale(1) translateY(0);      opacity: 1; }
+}
+
+@keyframes recordGlow {
+  0%, 100% { box-shadow: 0 8px 40px rgba(255,215,0,0.3); }
+  50%       { box-shadow: 0 8px 60px rgba(255,215,0,0.75); }
+}
+
+.story-text {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.45;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.story-text span {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 6px;
+  opacity: 0.9;
+}
+
+.story-overlay-hint {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  margin-top: 10px;
+}
+
+/* =======================
+   PRE-REVEAL BANNER (13,14)
+   ======================= */
+
+.pre-reveal-banner {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.pre-reveal-banner.visible {
+  opacity: 1;
+}
+
+.pre-reveal-banner.fade-out {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.pre-reveal-title {
+  font-size: 42px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 2px;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  text-align: center;
+  animation: preRevealBounce 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+.pre-reveal-sub {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  margin-top: 12px;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  animation: preRevealBounce 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.1s both;
+}
+
+@keyframes preRevealBounce {
+  from { transform: scale(0.6) translateY(20px); opacity: 0; }
+  to   { transform: scale(1)   translateY(0);    opacity: 1; }
+}
+
+
+/* =======================
+   LEADERBOARD BADGES (next to captain name)
+   ======================= */
+
+.lb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+
+.lb-badge-aggressive {
+  background: linear-gradient(135deg, #ff6b00, #e53935);
+  color: #fff;
+  box-shadow: 0 1px 6px rgba(255,107,0,0.4);
+  animation: aggressivePulse 1.6s ease-in-out infinite;
+}
+
+.lb-badge-rival {
+  background: linear-gradient(135deg, #6a0dad, #b44fff);
+  color: #fff;
+  box-shadow: 0 1px 6px rgba(180,79,255,0.35);
+}
+
+.lb-badge-quiet {
+  background: linear-gradient(135deg, #2c3e50, #4a6078);
+  color: #b0c4de;
+  border: 1px solid #607d8b;
+}
+
+
+/* =======================
+   LIVE FLASH BANNER (contest & record mid-auction)
+   ======================= */
+
+.live-flash-banner {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-120px);
+  z-index: 99999;
+  min-width: 340px;
+  max-width: 640px;
+  text-align: center;
+  padding: 16px 32px;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.45);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  transition: transform 0.45s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.45s;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.live-flash-banner.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+.live-flash-banner.fade-out {
+  transform: translateX(-50%) translateY(-80px);
+  opacity: 0;
+  transition: transform 0.5s ease, opacity 0.5s ease;
+}
+
+/* =======================
+   PLAYER NAME GLOW (live contested record)
+   ======================= */
+
+/* Purple glow — most contested record holder, still live in auction */
+.player-name-contested {
+  color: #c77dff !important;
+  animation: contestedNamePulse 1.4s ease-in-out infinite !important;
+}
+
+@keyframes contestedNamePulse {
+  0%, 100% { text-shadow: 0 0 10px rgba(180,79,255,0.5); }
+  50%       { text-shadow: 0 0 28px rgba(180,79,255,0.95), 0 0 50px rgba(180,79,255,0.5); }
+}
+
+/* Gold glow — current bid is breaking the highest sale record */
+.player-name-record {
+  color: #ffd700 !important;
+  animation: recordNamePulse 1.4s ease-in-out infinite !important;
+}
+
+@keyframes recordNamePulse {
+  0%, 100% { text-shadow: 0 0 10px rgba(255,215,0,0.5); }
+  50%       { text-shadow: 0 0 28px rgba(255,215,0,0.95), 0 0 50px rgba(255,215,0,0.5); }
+}
+
+/* Both at once — shift between purple and gold */
+.player-name-both {
+  animation: bothNamePulse 2s ease-in-out infinite !important;
+}
+
+@keyframes bothNamePulse {
+  0%   { color: #c77dff; text-shadow: 0 0 20px rgba(180,79,255,0.8); }
+  50%  { color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.8); }
+  100% { color: #c77dff; text-shadow: 0 0 20px rgba(180,79,255,0.8); }
+}
+
+/* =======================
+   PLAYER CHIP HIGHLIGHTS (team panel)
+   ======================= */
+
+.tag-highest-bid {
+  background: linear-gradient(135deg,#7b2d00,#e67e22,#ffd700) !important;
+  color: #3a1a00 !important;
+  border: none !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 10px rgba(255,215,0,0.45);
+  animation: highestBidChipGlow 2s ease-in-out infinite;
+}
+
+.tag-most-contested {
+  background: linear-gradient(135deg,#2a0060,#7b2fbe,#d4aaff) !important;
+  color: #fff !important;
+  border: none !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 10px rgba(180,79,255,0.4);
+  animation: contestedChipGlow 2s ease-in-out infinite;
+}
+
+/* If a player is BOTH highest bid AND most contested */
+.tag-highest-bid.tag-most-contested {
+  background: linear-gradient(135deg,#4a0080,#c9a227,#ffd700) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 14px rgba(255,215,0,0.5), 0 2px 14px rgba(180,79,255,0.4);
+}
+
+.tag-contested-icon {
+  margin-right: 3px;
+  font-size: 11px;
+}
+
+@keyframes highestBidChipGlow {
+  0%, 100% { box-shadow: 0 2px 8px rgba(255,215,0,0.4); }
+  50%       { box-shadow: 0 2px 18px rgba(255,215,0,0.8); }
+}
+
+@keyframes contestedChipGlow {
+  0%, 100% { box-shadow: 0 2px 8px rgba(180,79,255,0.35); }
+  50%       { box-shadow: 0 2px 18px rgba(180,79,255,0.7); }
 }
