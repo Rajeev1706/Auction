@@ -43,17 +43,6 @@ let soldState = {
   done: null
 };
 
-let retentionState = {
-  active: false,
-  player: null,
-  prevTeam: null,
-  highestBidder: null,
-  currentBid: 0,
-  timer: null,
-  timeLeft: 0,
-  phase: null
-};
-
 let soldRevealState = {
   active: false,
   overlay: null,
@@ -75,10 +64,7 @@ function clearSoldState() {
 
 
 
-document.addEventListener("keydown", (e) => {
-  console.log("ESC CHECK:", e.code, revealState.active);
 
-});
 
 
 function registerTimeout(id) {
@@ -120,10 +106,15 @@ const buzzerSound = new Audio("buzzer.mp3");
 tickSound.volume = 1.0;
 buzzerSound.volume = 0.8;
 
-function clearSoldSummary() {
-  const section = document.getElementById("auctionSection");
-  if (section) section.innerHTML = "";
+// Global helper — accessible both inside and outside DOMContentLoaded
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;");
 }
+
+
 
 
 
@@ -144,10 +135,10 @@ document.addEventListener("DOMContentLoaded", () => {
   barca: "logos/barca.png",
   acmilan: "logos/ac milan.png",
   rm: "logos/realmadrid.png",
-  mancity: "logos/man city.png",
+  manutd: "logos/manutd.png",
   bayern: "logos/Bayern munich.png",
-  Leeds: "logos/leeds.png",
-  Leverkusen: "logos/leverkusen.png",
+  bvb: "logos/bvb.png",
+  chelsea: "logos/chelsea.png",
   intermilan: "logos/Inter-Milan.png"
 };
 
@@ -255,7 +246,7 @@ const undoBtn = document.getElementById("undoActionBtn");
   bidderTeams[newCaptain] = bidderTeams[oldCaptain];
   teamMeta[newCaptain] = {
     ...teamMeta[oldCaptain],
-    teamName
+    teamName,
   };
 
   delete bidders[oldCaptain];
@@ -294,7 +285,7 @@ const undoBtn = document.getElementById("undoActionBtn");
   teamMeta[newCaptain] = {
     teamName,
     logo: null,
-    retentionUsed: false
+    retentionUsed: false,
   };
 
   const file = teamLogoInput.files[0];
@@ -316,13 +307,6 @@ const undoBtn = document.getElementById("undoActionBtn");
   /* =======================
      HELPERS
      ======================= */
-
-  function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;");
-  }
 
 
   function updatePlayerCount() {
@@ -665,18 +649,6 @@ function removeRevealCard() {
   if (overlay) overlay.remove();
 }
 
-function glowTeamPanel(team) {
-  const panel = document.querySelector(`[data-team="${team}"]`);
-  if (!panel) return;
-  panel.classList.add("team-glow");
-}
-
-function removeGlowFromTeam(team) {
-  const panel = document.querySelector(`[data-team="${team}"]`);
-  if (!panel) return;
-  panel.classList.remove("team-glow");
-}
-
 
 
   /* =======================
@@ -725,6 +697,19 @@ function renderSoldHistory() {
       ? Math.ceil(totalPlayersAtStart / Math.max(1, Object.keys(bidders).length))
       : 8;
 
+    // ── SQUAD STRENGTH (card weightage: silver=1, gold=3, purple=5) ──
+    const cardWeight = { silver: 1, gold: 3, purple: 5 };
+    let topSquadBidder = null, topSquadScore = -1;
+    Object.keys(bidders).forEach(b => {
+      const squadScore = (bidderTeams[b] || []).reduce((sum, p) => {
+        const ct = (playerMeta[p] || {}).cardType || "silver";
+        return sum + (cardWeight[ct] || 1);
+      }, 0);
+      if (squadScore > topSquadScore) { topSquadScore = squadScore; topSquadBidder = b; }
+    });
+    // Only show crown if they have at least 1 player
+    if (topSquadScore <= 0) topSquadBidder = null;
+
     // ── Compute badges for leaderboard ──
     let lbAggressiveBidder = null, lbMaxBids = 0;
     Object.entries(sessionBidCounts).forEach(([b, c]) => {
@@ -762,7 +747,10 @@ function renderSoldHistory() {
         ? `<span class="lb-badge lb-badge-quiet">😴 Quietest</span>` : "";
 
       const card = document.createElement("div");
-      card.className = "team-leader" + (isLowBudget ? " low-budget" : "");
+      const isTeamOfMoment = bidder === topSquadBidder;
+      card.className = "team-leader"
+        + (isLowBudget    ? " low-budget"     : "")
+        + (isTeamOfMoment ? " team-of-moment" : "");
       card.dataset.team = bidder;
       card.onclick = () => {
         if (revealState.active || soldState.active) return;
@@ -787,12 +775,20 @@ function renderSoldHistory() {
         return `<span class="${cls}" title="${isHighestBid ? 'Highest sold player' : ''}${isMostContested ? ' · Most contested' : ''}">${crownLabel}${contestLabel}${escapeHtml(p)}</span>`;
       }).join("") || "<span class='team-player-tag muted'>No players</span>";
 
+      // Compute squad score for display
+      const mySquadScore = (bidderTeams[bidder] || []).reduce((sum, p) => {
+        const ct = (playerMeta[p] || {}).cardType || "silver";
+        return sum + (cardWeight[ct] || 1);
+      }, 0);
+
       card.innerHTML = `
         ${meta.logo ? `<img class="circle-logo" src="${meta.logo}">` : ""}
         <div class="team-info">
           <h4>
+            ${isTeamOfMoment ? `<span class="team-moment-crown">👑</span>` : ""}
             ${escapeHtml(meta.teamName || "Team")} (${team.length})
             ${isLowBudget ? `<span class="low-budget-badge">Low Budget</span>` : ""}
+            ${mySquadScore > 0 ? `<span class="squad-score-pill">${mySquadScore}pts</span>` : ""}
           </h4>
           <p>
             <strong>${escapeHtml(bidder)}</strong> — ₹${budget}
@@ -817,7 +813,6 @@ function renderSoldHistory() {
   let currentBid = 25;
   let currentBidder = null;
   let lastSale = null;
-  let auctionLocked = false;
   let lastSkip = null;
   let undoTimer = null;
   let lastActionType = null;
@@ -874,6 +869,24 @@ function renderSoldHistory() {
   let lastFlashContestCount = 0;   // bid count at which contest flash last fired
   let lastFlashRecordAmount = 0;   // sale amount at which record flash last fired
 
+  // ── BETRAYAL BANNER (persists on idle panel until next auction starts) ──
+  let pendingBetrayalBanner = null; // { html, gradient } or null
+
+  // ── HOMECOMING BANNER (persists on idle panel until next auction starts) ──
+  let pendingHomecomingBanner = null; // { html, gradient } or null
+
+  // ── MONOPOLY BANNER (persists on idle panel until next auction starts) ──
+  let pendingMonopolyBanner = null; // { html, gradient } or null
+
+  // ── CLUB COLLECTOR BANNER (persists on idle panel until next auction starts) ──
+  let pendingCollectorBanner = null; // { html, gradient } or null
+
+  // ── SESSION MVP BANNER (persists on idle panel until next auction starts) ──
+  let pendingMvpBanner = null; // { html, gradient } or null
+
+  // ── BUDGET ASSASSIN (live banner, replaces war banner) ──
+  let budgetAssassinHtml = ""; // set when a ₹200+ jump happens, cleared on next bid
+
   /* =======================
      PERSISTENCE
      ======================= */
@@ -906,7 +919,9 @@ function renderSoldHistory() {
         lastWinner,
         goldSoldPrices,
         milestoneShown,
-        isRound2
+        isRound2,
+        auctionPlayerIndex,
+        firstRoundUnsoldArr: [...firstRoundUnsoldSet]
       };
       localStorage.setItem("auction_state_v1", JSON.stringify(state));
 
@@ -953,6 +968,8 @@ function renderSoldHistory() {
       if (s.goldSoldPrices)      goldSoldPrices.push(...s.goldSoldPrices);
       if (s.milestoneShown)      Object.assign(milestoneShown, s.milestoneShown);
       if (s.isRound2)            isRound2            = s.isRound2;
+      if (s.auctionPlayerIndex)  auctionPlayerIndex  = s.auctionPlayerIndex;
+      if (s.firstRoundUnsoldArr) s.firstRoundUnsoldArr.forEach(p => firstRoundUnsoldSet.add(p));
     } catch (e) {
       console.warn("Load failed:", e);
     }
@@ -965,16 +982,52 @@ function renderSoldHistory() {
   function renderAuctionIdle() {
   if (soldState.active) return;
 
+  // Remove lightning border when idle
+  const mp = document.querySelector(".middle-panel");
+  if (mp) mp.classList.remove("lightning-war");
+
+  const betrayalHtml = pendingBetrayalBanner
+    ? `<div class="idle-betrayal-banner" style="background:${pendingBetrayalBanner.gradient}">${pendingBetrayalBanner.html}</div>`
+    : "";
+
+  const homecomingHtml = pendingHomecomingBanner
+    ? `<div class="idle-homecoming-banner" style="background:${pendingHomecomingBanner.gradient}">${pendingHomecomingBanner.html}</div>`
+    : "";
+
+  const monopolyHtml = pendingMonopolyBanner
+    ? `<div class="idle-monopoly-banner" style="background:${pendingMonopolyBanner.gradient}">${pendingMonopolyBanner.html}</div>`
+    : "";
+
+  const collectorHtml = pendingCollectorBanner
+    ? `<div class="idle-collector-banner" style="background:${pendingCollectorBanner.gradient}">${pendingCollectorBanner.html}</div>`
+    : "";
+
+  const mvpHtml = pendingMvpBanner
+    ? `<div class="idle-mvp-banner" style="background:${pendingMvpBanner.gradient}">${pendingMvpBanner.html}</div>`
+    : "";
+
+  // Only show Team Intros button before the first auction starts
+  const showIntrosBtn = auctionPlayerIndex === 0;
+
   auctionSection.innerHTML = `
+    ${homecomingHtml}
+    ${betrayalHtml}
+    ${monopolyHtml}
+    ${collectorHtml}
+    ${mvpHtml}
     <p class="muted">Ready for next auction</p>
 
     <div class="auction-actions">
       <button id="startAuctionBtn">Start Auction</button>
+      ${showIntrosBtn ? `<button id="teamIntroBtn" class="intro-btn">🎬 Team Intros</button>` : ""}
       <button id="undoLastSaleBtn" class="secondary-btn">↺ Undo Last Sale</button>
     </div>
   `;
 
   document.getElementById("startAuctionBtn").onclick = startAuction;
+  if (showIntrosBtn) {
+    document.getElementById("teamIntroBtn").onclick = () => showTeamIntros(Object.keys(bidders));
+  }
 
   const undoBtn = document.getElementById("undoLastSaleBtn");
   if (undoBtn) {
@@ -1055,25 +1108,25 @@ function showLiveBidding() {
   let warTeams = [];
   let intruder = null; // third party who just broke into an existing war
 
-  // Check 2-team war: last 6 bids, only 2 unique teams, each bid at least 3 times
-  const last6 = recentBidders.slice(-6);
-  if (last6.length >= 6) {
+  // Check 2-team war: last 4 bids, only 2 unique teams, each bid at least 2 times
+  const last6 = recentBidders.slice(-4);
+  if (last6.length >= 4) {
     const unique6 = [...new Set(last6)];
     if (unique6.length === 2 &&
-        last6.filter(b => b === unique6[0]).length >= 3 &&
-        last6.filter(b => b === unique6[1]).length >= 3) {
+        last6.filter(b => b === unique6[0]).length >= 2 &&
+        last6.filter(b => b === unique6[1]).length >= 2) {
       isBiddingWar = true;
       warTeams = unique6;
     }
   }
 
-  // Check 3-team war: last 9 bids, only 3 unique teams, each bid at least 3 times
+  // Check 3-team war: last 6 bids, only 3 unique teams, each bid at least 2 times
   if (!isBiddingWar) {
-    const last9 = recentBidders.slice(-9);
-    if (last9.length >= 9) {
+    const last9 = recentBidders.slice(-6);
+    if (last9.length >= 6) {
       const unique9 = [...new Set(last9)];
       if (unique9.length === 3 &&
-          unique9.every(t => last9.filter(b => b === t).length >= 3)) {
+          unique9.every(t => last9.filter(b => b === t).length >= 2)) {
         isBiddingWar = true;
         warTeams = unique9;
       }
@@ -1081,13 +1134,13 @@ function showLiveBidding() {
   }
 
   // Intruder check: was there a 2-team war before the last bid broke it?
-  if (!isBiddingWar && recentBidders.length >= 7) {
-    const prev6 = recentBidders.slice(-7, -1);
+  if (!isBiddingWar && recentBidders.length >= 5) {
+    const prev6 = recentBidders.slice(-5, -1);
     const prevUnique = [...new Set(prev6)];
     const latest = recentBidders[recentBidders.length - 1];
     if (prevUnique.length === 2 &&
-        prev6.filter(b => b === prevUnique[0]).length >= 3 &&
-        prev6.filter(b => b === prevUnique[1]).length >= 3 &&
+        prev6.filter(b => b === prevUnique[0]).length >= 2 &&
+        prev6.filter(b => b === prevUnique[1]).length >= 2 &&
         !prevUnique.includes(latest)) {
       intruder = latest;
       warTeams = prevUnique;
@@ -1097,14 +1150,14 @@ function showLiveBidding() {
   // Fightback check: after intruder joined, a war team bids back
   let fightbackBidder = null;
   let fightbackIntruder = null;
-  if (!isBiddingWar && !intruder && recentBidders.length >= 8) {
-    const prev7 = recentBidders.slice(-8, -1);
-    const prevUnique6 = [...new Set(prev7.slice(0, 6))];
+  if (!isBiddingWar && !intruder && recentBidders.length >= 6) {
+    const prev7 = recentBidders.slice(-6, -1);
+    const prevUnique6 = [...new Set(prev7.slice(0, 4))];
     const prev7Unique = [...new Set(prev7)];
     const latest = recentBidders[recentBidders.length - 1];
     if (prevUnique6.length === 2 &&
-        prev7.slice(0,6).filter(b => b === prevUnique6[0]).length >= 3 &&
-        prev7.slice(0,6).filter(b => b === prevUnique6[1]).length >= 3 &&
+        prev7.slice(0,4).filter(b => b === prevUnique6[0]).length >= 2 &&
+        prev7.slice(0,4).filter(b => b === prevUnique6[1]).length >= 2 &&
         prev7Unique.length === 3 &&
         prevUnique6.includes(latest)) {
       fightbackBidder = latest;
@@ -1133,8 +1186,9 @@ function showLiveBidding() {
   const bg = currentBannerGradient || bannerGradients[0];
 
   // War phrases (70 total)
+  // ── 2-TEAM WAR PHRASES (60+) ──
   const warPhrases = [
-    (t1,t2) => `🔥 Bidding War! — <strong>${t1}</strong> vs <strong>${t2}</strong>`,
+    (t1,t2) => `🔥 Bidding War! — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `⚔️ It's a battle! — <strong>${t1}</strong> and <strong>${t2}</strong> won't back down!`,
     (t1,t2) => `💰 Who wants it more? — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `😤 Neither side is giving up! — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
@@ -1154,59 +1208,131 @@ function showLiveBidding() {
     (t1,t2) => `⚡ Sparks flying! — <strong>${t1}</strong> and <strong>${t2}</strong> are locked in!`,
     (t1,t2) => `🏟️ The whole room is watching — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `😬 Someone is going to regret this — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🎰 Place your bets — <strong>${t1}</strong> vs <strong>${t2}</strong> shows no signs of stopping!`,
     (t1,t2) => `🫀 Hearts are racing! — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🧨 This could EXPLODE any second — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🎸 The auction room just turned into a stage — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🌊 The bids are flooding in — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🏹 Both sides are LOCKED ON — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `😵 Nobody can look away — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🔑 Who holds the key? — <strong>${t1}</strong> or <strong>${t2}</strong>?`,
     (t1,t2) => `🤯 UNBELIEVABLE! — <strong>${t1}</strong> and <strong>${t2}</strong> refuse to quit!`,
     (t1,t2) => `💎 They both want this gem badly — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🎤 Someone drop the mic — <strong>${t1}</strong> vs <strong>${t2}</strong> is heating up!`,
     (t1,t2) => `🔮 Nobody knows how this ends — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🌡️ The temperature is RISING — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🎯 Every bid is a bullet — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🦁 Two lions fighting — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🚂 This train has no brakes — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `💬 Words won't settle this — only bids will! — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🧠 Who blinks first? — <strong>${t1}</strong> or <strong>${t2}</strong>?`,
-    (t1,t2) => `🔥 Pure determination — <strong>${t1}</strong> and <strong>${t2}</strong> want this player!`,
     (t1,t2) => `😏 <strong>${t1}</strong> raises. <strong>${t2}</strong> raises back. No end in sight!`,
-    (t1,t2) => `🎡 This is a rollercoaster! — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🌪️ A storm is brewing — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🏋️ Heavy lifters! — <strong>${t1}</strong> and <strong>${t2}</strong> are going all in!`,
-    (t1,t2) => `🎻 A symphony of bids — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🧲 They can't resist! — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🏄 Riding the wave — <strong>${t1}</strong> and <strong>${t2}</strong> just keep going!`,
-    (t1,t2) => `😤 Neither captain is backing off — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `⚙️ The auction machine is on fire — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🪖 Battle mode activated — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🎆 Fireworks in the auction room — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🕹️ This is the final boss fight — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🧗 Climbing higher and higher — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🥷 Silent but deadly — <strong>${t1}</strong> and <strong>${t2}</strong> keep raising!`,
-    (t1,t2) => `🎯 Locked in a duel — <strong>${t1}</strong> vs <strong>${t2}</strong>, who will crack?`,
-    (t1,t2) => `🌟 Stars collide! — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🤺 En garde! — <strong>${t1}</strong> vs <strong>${t2}</strong> in a fencing match of bids!`,
-    (t1,t2) => `🎠 Going around and around — <strong>${t1}</strong> vs <strong>${t2}</strong>, when does it stop?`,
-    (t1,t2) => `🦅 Eagles in the sky — <strong>${t1}</strong> and <strong>${t2}</strong> won't land yet!`,
-    (t1,t2) => `🧯 Someone call the fire brigade — <strong>${t1}</strong> vs <strong>${t2}</strong> is BLAZING!`,
-    (t1,t2) => `🎳 Strike after strike — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🪄 Magic in the air — <strong>${t1}</strong> and <strong>${t2}</strong> are spellbound!`,
-    (t1,t2) => `🚨 RED ALERT — <strong>${t1}</strong> vs <strong>${t2}</strong> is out of control!`,
-    (t1,t2) => `🎖️ A medal-worthy battle — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
-    (t1,t2) => `🌈 Every bid more colourful than the last — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🔴 CODE RED! — <strong>${t1}</strong> and <strong>${t2}</strong> are going to the wire!`,
-    (t1,t2) => `🎢 Hold on tight! — <strong>${t1}</strong> vs <strong>${t2}</strong> is one wild ride!`,
-    (t1,t2) => `💫 Out of this world — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🥵 Someone is sweating — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
     (t1,t2) => `🏁 No finish line in sight — <strong>${t1}</strong> vs <strong>${t2}</strong> keeps going!`,
     (t1,t2) => `🫵 The room points at <strong>${t1}</strong> and <strong>${t2}</strong> — who breaks first?`,
+    (t1,t2) => `🎸 The auction room just turned into a stage — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🧯 Someone call the fire brigade — <strong>${t1}</strong> vs <strong>${t2}</strong> is BLAZING!`,
+    (t1,t2) => `🎰 Place your bets — <strong>${t1}</strong> vs <strong>${t2}</strong> shows no signs of stopping!`,
+    (t1,t2) => `🌟 Stars collide! — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🤺 En garde! — <strong>${t1}</strong> vs <strong>${t2}</strong> in a fencing match of bids!`,
+    (t1,t2) => `🎆 Fireworks in the auction room — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🏋️ Heavy lifters! — <strong>${t1}</strong> and <strong>${t2}</strong> are going all in!`,
+    (t1,t2) => `🧲 They can't resist! — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `😡 The rivalry is REAL — <strong>${t1}</strong> vs <strong>${t2}</strong> won't let go!`,
+    (t1,t2) => `🎖️ A medal-worthy battle — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `💫 Out of this world — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🐉 Two dragons in the room — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🏰 This is an all-out siege — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `⚡ Lightning round! — <strong>${t1}</strong> and <strong>${t2}</strong> are electrifying!`,
+    (t1,t2) => `🎵 The auction has a rhythm now — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t1}</strong>, <strong>${t2}</strong>…`,
+    (t1,t2) => `🥁 The drums are beating — <strong>${t1}</strong> vs <strong>${t2}</strong> is at war!`,
+    (t1,t2) => `🌙 This could go all night — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🔬 Every bid under the microscope — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🪃 <strong>${t1}</strong> bids, <strong>${t2}</strong> bids back — like a boomerang!`,
+    (t1,t2) => `🏇 Neck and neck! — <strong>${t1}</strong> vs <strong>${t2}</strong> in a photo finish!`,
+    (t1,t2) => `🧊 Cool heads? Not from <strong>${t1}</strong> or <strong>${t2}</strong>!`,
+    (t1,t2) => `🎙️ This commentary writes itself — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🪝 Hooked! — <strong>${t1}</strong> and <strong>${t2}</strong> can't walk away!`,
+    (t1,t2) => `🧨 Fuse is lit — <strong>${t1}</strong> vs <strong>${t2}</strong> is about to explode!`,
+    (t1,t2) => `🦊 Two cunning captains — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🎭 Act 2 of the drama — <strong>${t1}</strong> vs <strong>${t2}</strong> won't end!`,
+    (t1,t2) => `🔩 Bolted in — <strong>${t1}</strong> and <strong>${t2}</strong> are going nowhere!`,
+    (t1,t2) => `🪨 Immovable forces — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🏄 Surfing the same wave — <strong>${t1}</strong> and <strong>${t2}</strong> won't wipe out!`,
+    (t1,t2) => `🎡 This ride isn't stopping — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🌠 A shooting star moment — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `⚗️ Chemistry on fire — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🎯 Target acquired on both sides — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
+    (t1,t2) => `🦅 Two eagles won't share the sky — <strong>${t1}</strong> vs <strong>${t2}</strong>!`,
   ];
 
-  // Fightback phrases (30 total)
+  // ── 3-TEAM WAR PHRASES (60+) ──
+  const threeTeamWarPhrases = [
+    (t1,t2,t3) => `🔥 THREE-WAY WAR! — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `💥 Chaos! — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> all want it!`,
+    (t1,t2,t3) => `🎪 Three-ring circus! — <strong>${t1}</strong> vs <strong>${t2}</strong> vs <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `😱 TRIPLE THREAT! — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> are all in!`,
+    (t1,t2,t3) => `⚔️ A three-way battle! — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong> — nobody is backing down!`,
+    (t1,t2,t3) => `🌋 The room is erupting! — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> refuse to stop!`,
+    (t1,t2,t3) => `🤯 THREE captains, ONE player! — <strong>${t1}</strong> vs <strong>${t2}</strong> vs <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🏆 Only one can win — <strong>${t1}</strong>, <strong>${t2}</strong> or <strong>${t3}</strong>?`,
+    (t1,t2,t3) => `🎭 Drama overload! — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> are all fighting!`,
+    (t1,t2,t3) => `💰 Three budgets, one goal! — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🚀 This is out of control! — <strong>${t1}</strong> vs <strong>${t2}</strong> vs <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎯 A triangle of pain — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> locked in!`,
+    (t1,t2,t3) => `🔺 Triforce of bidding! — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `😤 None of them will quit! — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🌪️ A three-way storm! — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> are relentless!`,
+    (t1,t2,t3) => `🧨 Triple fuse lit — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎰 Three players at the table — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `👀 Three sets of eyes on the prize — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `⚡ Triple lightning — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> are electrified!`,
+    (t1,t2,t3) => `🦁 Three lions in the room — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🥊 Three-way knockout incoming — <strong>${t1}</strong> vs <strong>${t2}</strong> vs <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🏟️ Standing room only — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> are the show!`,
+    (t1,t2,t3) => `🔥 The auction is ON FIRE — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🌊 Three waves crashing — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `😵 Even the auctioneer is confused! — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎸 A three-chord masterpiece — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🧠 Three strategies, one winner — <strong>${t1}</strong>, <strong>${t2}</strong> or <strong>${t3}</strong>?`,
+    (t1,t2,t3) => `🪖 Three armies in the field — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎆 Triple fireworks — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> won't stop!`,
+    (t1,t2,t3) => `🌡️ The room has NEVER been hotter — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🥵 Three captains sweating — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎡 Three rides at once — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🔮 Who predicted this?! — <strong>${t1}</strong>, <strong>${t2}</strong> AND <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🏰 A three-castle siege! — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🦅 Three eagles in the sky — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🧊 None of them are cooling down — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎵 A chaotic trio — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> all playing!`,
+    (t1,t2,t3) => `🌠 Three shooting stars! — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎯 Three bullets fired — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🪃 Triple boomerang — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong> keep coming back!`,
+    (t1,t2,t3) => `🚁 Three helicopters, one landing pad — <strong>${t1}</strong>, <strong>${t2}</strong> or <strong>${t3}</strong>?`,
+    (t1,t2,t3) => `🧲 All three are magnetised to this player — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎤 Three microphones on the floor — <strong>${t1}</strong>, <strong>${t2}</strong> or <strong>${t3}</strong> picks it up!`,
+    (t1,t2,t3) => `💣 Triple detonation — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🌈 Three colours in the war — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🏇 Three horses in the race — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🔩 Triple lock — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> are all stuck in!`,
+    (t1,t2,t3) => `🦊 Three foxes chasing one rabbit — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎲 Three dice rolling — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `⚗️ A three-way chemical reaction — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🏋️ Three heavy hitters — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> going all in!`,
+    (t1,t2,t3) => `🔑 Three keys, one lock — who opens it? <strong>${t1}</strong>, <strong>${t2}</strong> or <strong>${t3}</strong>?`,
+    (t1,t2,t3) => `🌙 Could go all night — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🥁 Three drum rolls! — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎙️ Three commentators needed — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🔬 Three formulas in the lab — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `⚙️ Triple engine running hot — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🪨 Three immovable forces — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎊 It's a THREE-WAY party nobody wanted — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `💡 Three brilliant minds, one obsession — <strong>${t1}</strong>, <strong>${t2}</strong>, <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🏄 Three surfers on the same wave — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🎡 Three rides at the fair — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🗡️ Three swords drawn — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong>!`,
+    (t1,t2,t3) => `🌀 A three-way spiral — <strong>${t1}</strong>, <strong>${t2}</strong> and <strong>${t3}</strong> can't escape!`,
+  ];
+
+  // ── FIGHTBACK PHRASES (60+) ──
   const fightbackPhrases = [
     (b,i) => `😤 <strong>${b}</strong> is NOT giving up that easy!`,
     (b,i) => `🔥 <strong>${b}</strong> fires back — <strong>${i}</strong>, you thought wrong!`,
@@ -1231,16 +1357,48 @@ function showLiveBidding() {
     (b,i) => `🦁 <strong>${b}</strong> roars back — <strong>${i}</strong>, you poked the wrong lion!`,
     (b,i) => `😂 <strong>${b}</strong> laughs at <strong>${i}</strong>'s bid and goes higher!`,
     (b,i) => `🧠 <strong>${b}</strong> was expecting this — already one step ahead of <strong>${i}</strong>!`,
-    (b,i) => `🎯 <strong>${b}</strong> has tunnel vision — <strong>${i}</strong> doesn't exist right now!`,
     (b,i) => `🥶 Ice cold response from <strong>${b}</strong> — <strong>${i}</strong> didn't shake them at all!`,
     (b,i) => `🏃 <strong>${b}</strong> sprints back into the race — <strong>${i}</strong>, try harder!`,
     (b,i) => `🌊 <strong>${b}</strong> rides the wave right back — <strong>${i}</strong>, hold on!`,
     (b,i) => `🎭 The audience gasps as <strong>${b}</strong> bids again — <strong>${i}</strong> is shook!`,
     (b,i) => `🔑 <strong>${b}</strong> holds the key — <strong>${i}</strong> is not getting in!`,
     (b,i) => `💎 <strong>${b}</strong> says this gem is MINE — <strong>${i}</strong>, back off!`,
+    (b,i) => `🪖 <strong>${b}</strong> puts on the war helmet — <strong>${i}</strong>, this is your last warning!`,
+    (b,i) => `🔄 <strong>${b}</strong> bounces straight back — <strong>${i}</strong> can't shake them!`,
+    (b,i) => `🎯 <strong>${b}</strong> has one target — this player — and <strong>${i}</strong> won't change that!`,
+    (b,i) => `🌪️ <strong>${b}</strong> comes storming back — <strong>${i}</strong>, brace yourself!`,
+    (b,i) => `🏹 <strong>${b}</strong> fires another arrow — <strong>${i}</strong>, you're in range!`,
+    (b,i) => `😤 <strong>${i}</strong> thought they were in — <strong>${b}</strong> had other ideas!`,
+    (b,i) => `🐉 <strong>${b}</strong> breathes fire — <strong>${i}</strong> just woke the dragon!`,
+    (b,i) => `🎪 The crowd roars as <strong>${b}</strong> counters — <strong>${i}</strong>, what now?`,
+    (b,i) => `⚙️ <strong>${b}</strong>'s engine just got a second wind — <strong>${i}</strong>, keep up!`,
+    (b,i) => `🚂 <strong>${b}</strong> is a freight train — <strong>${i}</strong> jumped on the tracks!`,
+    (b,i) => `🥊 <strong>${b}</strong> lands a counter punch — <strong>${i}</strong>, felt that one!`,
+    (b,i) => `🦅 <strong>${b}</strong> swoops back down — <strong>${i}</strong> thought the sky was clear!`,
+    (b,i) => `🧨 <strong>${b}</strong> detonates a counter bid — <strong>${i}</strong> didn't see it coming!`,
+    (b,i) => `🌠 <strong>${b}</strong> blazes back — <strong>${i}</strong>, you can't outrun them!`,
+    (b,i) => `🎸 <strong>${b}</strong> plays the comeback solo — <strong>${i}</strong> is off key now!`,
+    (b,i) => `🏰 <strong>${b}</strong> defends the castle — <strong>${i}</strong>, the drawbridge is up!`,
+    (b,i) => `🧊 <strong>${b}</strong> stays cool and raises — <strong>${i}</strong>'s plan fell flat!`,
+    (b,i) => `🌙 <strong>${b}</strong> was quiet but deadly — <strong>${i}</strong> made a big mistake!`,
+    (b,i) => `🎲 <strong>${b}</strong> rolls the dice again — <strong>${i}</strong>, the game isn't over!`,
+    (b,i) => `🔬 <strong>${b}</strong> studied <strong>${i}</strong>'s move and responded perfectly!`,
+    (b,i) => `💡 <strong>${b}</strong> had a plan all along — <strong>${i}</strong> walked right into it!`,
+    (b,i) => `🦊 <strong>${b}</strong> is too clever for <strong>${i}</strong> — the fightback is on!`,
+    (b,i) => `🪃 <strong>${b}</strong>'s bid comes right back — <strong>${i}</strong> can't escape!`,
+    (b,i) => `🏄 <strong>${b}</strong> rides the comeback wave — <strong>${i}</strong>, wipeout incoming!`,
+    (b,i) => `🗡️ <strong>${b}</strong> unsheathes the counter bid — <strong>${i}</strong>, en garde!`,
+    (b,i) => `🥁 <strong>${b}</strong> drums up the fightback — <strong>${i}</strong>, feel the beat!`,
+    (b,i) => `🔩 <strong>${b}</strong> is bolted in — <strong>${i}</strong> can't pull them out!`,
+    (b,i) => `🎡 <strong>${b}</strong> keeps spinning — <strong>${i}</strong> can't stop the ride!`,
+    (b,i) => `🏇 <strong>${b}</strong> surges on the inside — <strong>${i}</strong>, you're being passed!`,
+    (b,i) => `🌀 <strong>${b}</strong> pulls <strong>${i}</strong> into their vortex — no escape!`,
+    (b,i) => `🎊 Surprise! <strong>${b}</strong> is back — <strong>${i}</strong> declared victory too early!`,
+    (b,i) => `⚗️ <strong>${b}</strong>'s formula works — <strong>${i}</strong>'s experiment failed!`,
+    (b,i) => `🌈 <strong>${b}</strong> has more colours in the palette — <strong>${i}</strong> is out of paint!`,
   ];
 
-  // Intruder phrases (20 total)
+  // ── INTRUDER PHRASES (60+) ──
   const intruderPhrases = [
     (n,t1,t2) => `⚡ <strong>${n}</strong> enters the war! — ${t1} vs ${t2}, watch out!`,
     (n,t1,t2) => `🚨 Here comes <strong>${n}</strong>! — ${t1} &amp; ${t2} have a new challenger!`,
@@ -1272,9 +1430,42 @@ function showLiveBidding() {
     (n,t1,t2) => `😈 The villain has arrived — <strong>${n}</strong> is here! — ${t1} &amp; ${t2}, beware!`,
     (n,t1,t2) => `🎯 <strong>${n}</strong> takes aim at this player too — ${t1} &amp; ${t2}, competition just tripled!`,
     (n,t1,t2) => `🌟 A new star enters! — <strong>${n}</strong> wants in — ${t1} vs ${t2} vs <strong>${n}</strong>!`,
+    (n,t1,t2) => `🏹 <strong>${n}</strong> fires a shot across the bow! — ${t1} &amp; ${t2}, incoming!`,
+    (n,t1,t2) => `🦁 A third lion enters the cage! — <strong>${n}</strong> joins ${t1} and ${t2}!`,
+    (n,t1,t2) => `🎸 <strong>${n}</strong> crashes the concert! — ${t1} &amp; ${t2}, your duet just became a trio!`,
+    (n,t1,t2) => `🌋 <strong>${n}</strong> erupts into the bidding — ${t1} &amp; ${t2} weren't expecting THAT!`,
+    (n,t1,t2) => `🧠 <strong>${n}</strong> has been planning this all along — ${t1} &amp; ${t2} are in trouble!`,
+    (n,t1,t2) => `🌀 <strong>${n}</strong> spins into the war — ${t1} and ${t2}, you've got company!`,
+    (n,t1,t2) => `🎊 Uninvited but very welcome — <strong>${n}</strong> is IN! — ${t1}, ${t2}, watch out!`,
+    (n,t1,t2) => `🔔 The bell rings for <strong>${n}</strong>! — ${t1} &amp; ${t2}, a third round just started!`,
+    (n,t1,t2) => `🏰 A third army arrives at the gates — <strong>${n}</strong>! — ${t1} &amp; ${t2} are not alone!`,
+    (n,t1,t2) => `🪖 <strong>${n}</strong> marches onto the battlefield! — ${t1} &amp; ${t2}, enemy on the flank!`,
+    (n,t1,t2) => `⚙️ <strong>${n}</strong>'s engine roars to life! — ${t1} &amp; ${t2}, there's a new competitor!`,
+    (n,t1,t2) => `🎡 <strong>${n}</strong> jumps on the ride — ${t1} &amp; ${t2}, make room!`,
+    (n,t1,t2) => `🌠 <strong>${n}</strong> falls from the sky into this war — ${t1} &amp; ${t2}, eyes up!`,
+    (n,t1,t2) => `🦊 <strong>${n}</strong> was lurking in the shadows — ${t1} &amp; ${t2} didn't notice!`,
+    (n,t1,t2) => `🥁 <strong>${n}</strong> plays a new drum — ${t1} &amp; ${t2}, the beat just changed!`,
+    (n,t1,t2) => `🔬 <strong>${n}</strong> analysed the situation and pounced — ${t1} &amp; ${t2} are exposed!`,
+    (n,t1,t2) => `🃏 <strong>${n}</strong> plays a wild card! — ${t1} &amp; ${t2}, reshuffle the deck!`,
+    (n,t1,t2) => `🎵 A third voice joins the chorus — <strong>${n}</strong>! — ${t1} &amp; ${t2}, sing louder!`,
+    (n,t1,t2) => `💡 <strong>${n}</strong> had the lightbulb moment — ${t1} &amp; ${t2} didn't see the move!`,
+    (n,t1,t2) => `🏄 <strong>${n}</strong> catches the wave — ${t1} &amp; ${t2}, make room on the surfboard!`,
+    (n,t1,t2) => `🌙 <strong>${n}</strong> rises from the dark — ${t1} &amp; ${t2}, the night just got longer!`,
+    (n,t1,t2) => `🗡️ <strong>${n}</strong> draws a third sword — ${t1} &amp; ${t2}, it's a three-way duel!`,
+    (n,t1,t2) => `🎤 <strong>${n}</strong> grabs the mic — ${t1} &amp; ${t2}, someone else wants to speak!`,
+    (n,t1,t2) => `🪃 <strong>${n}</strong>'s bid comes out of nowhere — ${t1} &amp; ${t2} didn't track it!`,
+    (n,t1,t2) => `🔩 <strong>${n}</strong> wrenches into the fight — ${t1} &amp; ${t2}, tighten up!`,
+    (n,t1,t2) => `🏇 A dark horse enters the race! — <strong>${n}</strong> challenges ${t1} and ${t2}!`,
+    (n,t1,t2) => `🎰 <strong>${n}</strong> bets big out of nowhere — ${t1} &amp; ${t2}, the stakes just rose!`,
+    (n,t1,t2) => `🧨 <strong>${n}</strong> is the wildcard nobody expected — ${t1} &amp; ${t2}, brace for chaos!`,
+    (n,t1,t2) => `🌈 A third colour joins the palette — <strong>${n}</strong>! — ${t1} &amp; ${t2}, the picture just changed!`,
+    (n,t1,t2) => `🥊 A third contender enters the ring — <strong>${n}</strong>! — ${t1} &amp; ${t2}, corner up!`,
+    (n,t1,t2) => `⚗️ <strong>${n}</strong> throws a new element into the mix — ${t1} &amp; ${t2}, volatile situation!`,
+    (n,t1,t2) => `🎭 Act 3 just started and <strong>${n}</strong> is in it — ${t1} &amp; ${t2}, plot twist!`,
+    (n,t1,t2) => `🌀 <strong>${n}</strong> spins the war in a new direction — ${t1} &amp; ${t2}, reorient!`,
   ];
 
-  // Only refresh war phrase every 4 bids (2 back-and-forth exchanges)
+    // Only refresh war phrase every 4 bids (2 back-and-forth exchanges)
   const bidsSinceLastPhrase = recentBidders.length - warPhraseLastAt;
   const shouldRefreshPhrase = bidsSinceLastPhrase >= 4 || warPhraseLastAt === 0;
 
@@ -1290,11 +1481,16 @@ function showLiveBidding() {
     bannerHtml = `<div class="bidding-war-banner intruder-banner" style="background:${bg}">${phrase(escapeHtml(intruder), escapeHtml(warTeams[0]), escapeHtml(warTeams[1]))}</div>`;
   } else if (isBiddingWar) {
     if (shouldRefreshPhrase) {
-      currentWarPhraseIdx = Math.floor(Math.random() * warPhrases.length);
+      currentWarPhraseIdx = Math.floor(Math.random() * (warTeams.length === 3 ? threeTeamWarPhrases.length : warPhrases.length));
       warPhraseLastAt = recentBidders.length;
     }
-    const phrase = warPhrases[currentWarPhraseIdx];
-    bannerHtml = `<div class="bidding-war-banner" style="background:${bg}">${phrase(escapeHtml(warTeams[0]), escapeHtml(warTeams[1]))}</div>`;
+    if (warTeams.length === 3) {
+      const phrase = threeTeamWarPhrases[currentWarPhraseIdx];
+      bannerHtml = `<div class="bidding-war-banner" style="background:${bg}">${phrase(escapeHtml(warTeams[0]), escapeHtml(warTeams[1]), escapeHtml(warTeams[2]))}</div>`;
+    } else {
+      const phrase = warPhrases[currentWarPhraseIdx];
+      bannerHtml = `<div class="bidding-war-banner" style="background:${bg}">${phrase(escapeHtml(warTeams[0]), escapeHtml(warTeams[1]))}</div>`;
+    }
   }
 
   // ── SPENDING RATE ──
@@ -1314,10 +1510,18 @@ function showLiveBidding() {
     }
   }
 
+  // ── LIGHTNING BORDER on middle-panel during bidding war ──
+  const middlePanel = document.querySelector(".middle-panel");
+  if (middlePanel) {
+    if (isBiddingWar || intruder || fightbackBidder) {
+      middlePanel.classList.add("lightning-war");
+    } else {
+      middlePanel.classList.remove("lightning-war");
+    }
+  }
+
   // ── PLAYER NAME GLOW ──
-  // Purple glow: current player holds the most-contested record
   const isContestedLive = mostContestedRecord.player === currentPlayer && mostContestedRecord.count > 0;
-  // Gold glow: current bid is already breaking the highest-sale record
   const isRecordBidLive = mostExpensiveSale !== null && currentBid > mostExpensiveSale.amount;
 
   let playerNameClass = "player-name";
@@ -1325,11 +1529,25 @@ function showLiveBidding() {
   else if (isContestedLive)              playerNameClass += " player-name-contested";
   else if (isRecordBidLive)             playerNameClass += " player-name-record";
 
+  // ── MOST CONTESTED PERSISTENT BANNER ──
+  // Shows while current player holds the all-time bid-count record
+  // Disappears automatically once player is sold (currentPlayer changes)
+  const contestedBannerHtml = isContestedLive
+    ? `<div class="contested-live-banner">
+        🎯 <strong>Most Contested Player!</strong>
+        <span class="contested-live-count">${mostContestedRecord.count} bids — All-time record this session!</span>
+       </div>`
+    : "";
+
+  // Budget assassin replaces war banner when active
+  const activeBannerHtml = budgetAssassinHtml || bannerHtml;
+
   auctionSection.innerHTML = `
     <h2 class="auction-title">🎯 Auction Area</h2>
 
-    ${bannerHtml}
+    ${activeBannerHtml}
     ${spendingAlertHtml}
+    ${contestedBannerHtml}
 
     <div class="auction-focus">
       🔥 <strong>Bidding for:</strong>
@@ -1410,6 +1628,7 @@ function showLiveBidding() {
         currentBidder = bidder;
         recentBidders.push(bidder);
         bidLog.push({ bidder, amount: currentBid });
+        budgetAssassinHtml = ""; // clear assassin banner on normal +5 bid
         // live record bid flash
         if (mostExpensiveSale && currentBid > mostExpensiveSale.amount && currentBid > lastFlashRecordAmount) {
           lastFlashRecordAmount = currentBid;
@@ -1422,18 +1641,7 @@ function showLiveBidding() {
         sessionBidCounts[bidder] = (sessionBidCounts[bidder] || 0) + 1;
         currentPlayerBidCount++;
         if (currentPlayerBidCount > mostContestedRecord.count) {
-          const wasNewRecord = mostContestedRecord.count > 0;
           mostContestedRecord = { player: currentPlayer, count: currentPlayerBidCount };
-          // flash banner only when a new all-time record is set (not first time)
-          if (wasNewRecord && currentPlayerBidCount > lastFlashContestCount) {
-            lastFlashContestCount = currentPlayerBidCount;
-            showLiveFlashBanner(
-              `🎯 New Most Contested Record! — <strong>${escapeHtml(currentPlayer)}</strong> — ${currentPlayerBidCount} bids!`,
-              "linear-gradient(135deg,#1a0050,#6a00c0,#b44fff)"
-            );
-          } else if (!wasNewRecord) {
-            lastFlashContestCount = currentPlayerBidCount;
-          }
         }
         // rivalry
         if (recentBidders.length >= 2) {
@@ -1470,10 +1678,80 @@ function showLiveBidding() {
         alert("Not enough points");
         return;
       }
+      const bidJump = val - currentBid;
       currentBid = val;
       currentBidder = bidder;
       recentBidders.push(bidder);
       bidLog.push({ bidder, amount: currentBid });
+
+      // ── BUDGET ASSASSIN — ₹200+ single jump ──
+      if (bidJump >= 200) {
+        const assassinPhrases200 = [
+          `💣 <strong>${escapeHtml(bidder)}</strong> drops ₹${bidJump} in one shot — ruthless!`,
+          `😱 ₹${bidJump} in a single bid! <strong>${escapeHtml(bidder)}</strong> means business!`,
+          `🔥 <strong>${escapeHtml(bidder)}</strong> just nuked the auction — ₹${bidJump} bid!`,
+          `🤯 WHO DOES THAT?! — <strong>${escapeHtml(bidder)}</strong> bids ₹${bidJump} at once!`,
+          `💸 <strong>${escapeHtml(bidder)}</strong> throws ₹${bidJump} like it's nothing!`,
+          `⚡ LIGHTNING BID! — <strong>${escapeHtml(bidder)}</strong> jumps ₹${bidJump} in one go!`,
+          `🏹 One arrow, one massive bid — <strong>${escapeHtml(bidder)}</strong> fires ₹${bidJump}!`,
+          `😤 <strong>${escapeHtml(bidder)}</strong> is done playing — ₹${bidJump} says MINE!`,
+          `🌊 <strong>${escapeHtml(bidder)}</strong> tsunamis the auction — ₹${bidJump} in one shot!`,
+          `🦁 The lion roars — <strong>${escapeHtml(bidder)}</strong> bids ₹${bidJump}!`,
+          `🚀 <strong>${escapeHtml(bidder)}</strong> launches a ₹${bidJump} missile — game over?`,
+          `💀 Budget Assassin! — <strong>${escapeHtml(bidder)}</strong> drops ₹${bidJump} and walks away!`,
+          `🎯 Sniper bid! — <strong>${escapeHtml(bidder)}</strong> pins ₹${bidJump} in one precise shot!`,
+          `😈 <strong>${escapeHtml(bidder)}</strong> is not here to negotiate — ₹${bidJump}!`,
+          `🧨 <strong>${escapeHtml(bidder)}</strong> drops a grenade — ₹${bidJump} bid!`,
+          `🥶 Ice cold — <strong>${escapeHtml(bidder)}</strong> bids ₹${bidJump} without flinching!`,
+          `🏆 Power move! — <strong>${escapeHtml(bidder)}</strong> slams ₹${bidJump}!`,
+          `🔴 RED ALERT — <strong>${escapeHtml(bidder)}</strong> just bet ₹${bidJump} at once!`,
+          `💪 <strong>${escapeHtml(bidder)}</strong> flexes with a ₹${bidJump} bid — nobody expected that!`,
+          `🌋 <strong>${escapeHtml(bidder)}</strong> erupts — ₹${bidJump} in one single bid!`,
+          `🎪 The crowd goes silent — <strong>${escapeHtml(bidder)}</strong> just bid ₹${bidJump}!`,
+          `🐉 <strong>${escapeHtml(bidder)}</strong> breathes fire — ₹${bidJump} bid!`,
+          `🃏 Wild card! — <strong>${escapeHtml(bidder)}</strong> plays ₹${bidJump} and shocks everyone!`,
+          `🦅 <strong>${escapeHtml(bidder)}</strong> swoops in with ₹${bidJump} — no warning!`,
+          `🔔 Heads up! — <strong>${escapeHtml(bidder)}</strong> just dropped ₹${bidJump} and changed everything!`,
+          `🏰 <strong>${escapeHtml(bidder)}</strong> drops the drawbridge — ₹${bidJump} bid!`,
+          `🎸 <strong>${escapeHtml(bidder)}</strong> shreds a ₹${bidJump} power chord — the auction is ROCKED!`,
+          `🥊 Knockout bid! — <strong>${escapeHtml(bidder)}</strong> punches ₹${bidJump}!`,
+          `🌙 Out of nowhere — <strong>${escapeHtml(bidder)}</strong> strikes with ₹${bidJump}!`,
+          `🧠 <strong>${escapeHtml(bidder)}</strong> says enough chess — ₹${bidJump} ends the game!`,
+          `⚔️ <strong>${escapeHtml(bidder)}</strong> draws the sword — ₹${bidJump}!`,
+          `🌀 <strong>${escapeHtml(bidder)}</strong> spins the auction into chaos — ₹${bidJump}!`,
+          `🎺 ANNOUNCING — <strong>${escapeHtml(bidder)}</strong> bids ₹${bidJump}!`,
+          `🏄 <strong>${escapeHtml(bidder)}</strong> rides a ₹${bidJump} wave!`,
+          `💡 <strong>${escapeHtml(bidder)}</strong>'s lightbulb moment costs ₹${bidJump}!`,
+          `🔮 The oracle saw this — <strong>${escapeHtml(bidder)}</strong> bids ₹${bidJump}!`,
+          `🦊 Cunning move — <strong>${escapeHtml(bidder)}</strong> leaps ₹${bidJump} in one go!`,
+          `🎲 <strong>${escapeHtml(bidder)}</strong> rolls all the dice — ₹${bidJump}!`,
+          `🪃 <strong>${escapeHtml(bidder)}</strong>'s ₹${bidJump} bid comes from nowhere!`,
+          `🏇 <strong>${escapeHtml(bidder)}</strong> sprints ₹${bidJump} ahead of the pack!`,
+          `🌠 A shooting star bid — <strong>${escapeHtml(bidder)}</strong> fires ₹${bidJump}!`,
+          `⚗️ <strong>${escapeHtml(bidder)}</strong>'s formula = ₹${bidJump} in one shot!`,
+          `🎊 Party crasher — <strong>${escapeHtml(bidder)}</strong> arrives with ₹${bidJump}!`,
+          `🗡️ One slash — <strong>${escapeHtml(bidder)}</strong> bids ₹${bidJump}!`,
+          `🧊 Cold blooded — <strong>${escapeHtml(bidder)}</strong> drops ₹${bidJump} with zero emotion!`,
+          `🎭 Act 1 ends here — <strong>${escapeHtml(bidder)}</strong> bids ₹${bidJump}!`,
+          `🔬 Calculated! — <strong>${escapeHtml(bidder)}</strong> precision-strikes with ₹${bidJump}!`,
+          `🌈 <strong>${escapeHtml(bidder)}</strong> paints the auction with ₹${bidJump}!`,
+          `🪖 <strong>${escapeHtml(bidder)}</strong> goes to war — ₹${bidJump} opening shot!`,
+          `🏋️ <strong>${escapeHtml(bidder)}</strong> lifts the heaviest bid — ₹${bidJump}!`,
+          `😂 Nobody saw ₹${bidJump} coming — <strong>${escapeHtml(bidder)}</strong> wins the shock factor!`,
+        ];
+        const assassinGrads = [
+          "linear-gradient(135deg,#1a0000,#7b0000,#c0392b)",
+          "linear-gradient(135deg,#0d0000,#500000,#e74c3c)",
+          "linear-gradient(135deg,#2d0000,#6b0000,#ff5733)",
+          "linear-gradient(135deg,#1c0000,#800000,#d32f2f)",
+          "linear-gradient(135deg,#0f0000,#5c0000,#b71c1c)",
+          "linear-gradient(135deg,#200000,#780000,#ef5350)",
+        ];
+        budgetAssassinHtml = `<div class="bidding-war-banner budget-assassin-banner" style="background:${assassinGrads[Math.floor(Math.random()*assassinGrads.length)]}">${assassinPhrases200[Math.floor(Math.random()*assassinPhrases200.length)]}</div>`;
+      } else {
+        budgetAssassinHtml = "";
+      }
+
       // live record bid flash
       if (mostExpensiveSale && currentBid > mostExpensiveSale.amount && currentBid > lastFlashRecordAmount) {
         lastFlashRecordAmount = currentBid;
@@ -1486,17 +1764,7 @@ function showLiveBidding() {
       sessionBidCounts[bidder] = (sessionBidCounts[bidder] || 0) + 1;
       currentPlayerBidCount++;
       if (currentPlayerBidCount > mostContestedRecord.count) {
-        const wasNewRecord2 = mostContestedRecord.count > 0;
         mostContestedRecord = { player: currentPlayer, count: currentPlayerBidCount };
-        if (wasNewRecord2 && currentPlayerBidCount > lastFlashContestCount) {
-          lastFlashContestCount = currentPlayerBidCount;
-          showLiveFlashBanner(
-            `🎯 New Most Contested Record! — <strong>${escapeHtml(currentPlayer)}</strong> — ${currentPlayerBidCount} bids!`,
-            "linear-gradient(135deg,#1a0050,#6a00c0,#b44fff)"
-          );
-        } else if (!wasNewRecord2) {
-          lastFlashContestCount = currentPlayerBidCount;
-        }
       }
       if (recentBidders.length >= 2) {
         const prev = recentBidders[recentBidders.length - 2];
@@ -1592,25 +1860,6 @@ function endAuction() {
 
   const meta = playerMeta[currentPlayer] || {};
   const prevTeam = meta.prevTeam;
-
-  const canRetain =
-    prevTeam &&
-    prevTeam !== currentBidder &&
-    teamMeta[prevTeam] &&
-    teamMeta[prevTeam].retentionUsed === false;
-
-  if (canRetain) {
-    // 🔐 ACTIVATE RETENTION (no UI yet)
-    retentionState.active = true;
-    retentionState.player = currentPlayer;
-    retentionState.prevTeam = prevTeam;
-    retentionState.highestBidder = currentBidder;
-    retentionState.currentBid = currentBid;
-    retentionState.phase = "decision";
-
-    auctionLocked = true;
-    return; // ⛔ stop normal sale
-  }
 
   // ✅ NORMAL SALE
   const salePlayer  = currentPlayer;
@@ -1846,24 +2095,227 @@ function endAuction() {
     "linear-gradient(135deg,#0d0221,#200150,#5a189a)",
   ];
 
-  // ── HOMECOMING ──
+  // ── HOMECOMING & BETRAYAL — match prevTeam key against team NAME ──
   const prevTeamKey = saleMeta.prevTeam;
-  if (prevTeamKey && saleBidder.toLowerCase().replace(/[\s\-]/g,"") === prevTeamKey.toLowerCase()) {
-    storyBanners.push({
-      html: rnd(homePhrases(escapeHtml(salePlayer), escapeHtml(saleBidder))),
-      gradient: rnd(homeGradients)
-    });
+
+  // Normalize a string for fuzzy matching: lowercase, strip spaces/hyphens/dots
+  const norm = s => (s || "").toLowerCase().replace(/[\s\-_.]/g, "");
+
+  // Known aliases: map prevTeam key → possible substrings that appear in a team name
+  const prevTeamAliases = {
+    barca:     ["barca", "barcelona", "fcb", "blaugrana"],
+    acmilan:   ["acmilan", "milan", "ac milan", "rossoneri"],
+    rm:        ["rm", "realmadrid", "real madrid", "madrid", "losblancos"],
+    manutd:    ["manutd", "manchester united", "man utd", "man united", "united", "mufc"],
+    bayern:    ["bayern", "bayernmunich", "fcbayern", "munich"],
+    bvb:       ["bvb", "dortmund", "borussia"],
+    chelsea:   ["chelsea", "cfc", "theblues"],
+    intermilan:["intermilan", "inter", "inter milan", "nerazzurri"],
+  };
+
+  // Check if a team name matches the prevTeamKey
+  function matchesTeam(teamName, key) {
+    const n = norm(teamName);
+    const aliases = prevTeamAliases[key] || [norm(key)];
+    return aliases.some(alias => n.includes(norm(alias)));
   }
 
-  // ── BETRAYAL ──
-  const prevCaptain = prevTeamKey
-    ? Object.keys(bidders).find(c => c.toLowerCase().replace(/[\s\-]/g,"") === prevTeamKey.toLowerCase())
+  // Find which captain's team name matches the prevTeamKey
+  const prevTeamCaptain = prevTeamKey
+    ? Object.keys(bidders).find(c => {
+        const tName = (teamMeta[c] || {}).teamName || "";
+        return matchesTeam(tName, prevTeamKey);
+      })
     : null;
-  if (prevCaptain && prevCaptain !== saleBidder) {
-    storyBanners.push({
-      html: rnd(betrayalPhrases(escapeHtml(prevCaptain), escapeHtml(saleBidder), escapeHtml(salePlayer))),
-      gradient: rnd(betrayalGradients)
+
+  // ── HOMECOMING — stored separately, shown persistently on idle panel ──
+  const buyerTeamName = (teamMeta[saleBidder] || {}).teamName || "";
+  if (prevTeamKey && matchesTeam(buyerTeamName, prevTeamKey)) {
+    pendingHomecomingBanner = {
+      html: rnd(homePhrases(escapeHtml(salePlayer), escapeHtml(buyerTeamName || saleBidder))),
+      gradient: rnd(homeGradients)
+    };
+  } else {
+    pendingHomecomingBanner = null;
+  }
+
+  // ── MONOPOLY PHRASE BANK ──
+  const monopolyPhrases = (team, club) => [
+    `🏰 <strong>${team}</strong> is rebuilding <strong>${club}</strong>!`,
+    `⚽ <strong>${team}</strong> is cornering the <strong>${club}</strong> market!`,
+    `🧩 <strong>${team}</strong> is collecting every <strong>${club}</strong> player!`,
+    `🏆 <strong>${team}</strong> is becoming the home of <strong>${club}</strong>!`,
+    `😤 <strong>${team}</strong> won't stop until they own all of <strong>${club}</strong>!`,
+    `🌍 <strong>${team}</strong> is the new <strong>${club}</strong>!`,
+    `🔒 <strong>${team}</strong> has locked down <strong>${club}</strong>'s squad!`,
+    `💰 <strong>${team}</strong> is investing heavily in <strong>${club}</strong> players!`,
+    `🎯 <strong>${team}</strong> has a plan — own every <strong>${club}</strong> player!`,
+    `🦁 <strong>${team}</strong> is building a <strong>${club}</strong> dynasty!`,
+    `🚀 <strong>${team}</strong> is launching a <strong>${club}</strong> takeover!`,
+    `😱 3 players from <strong>${club}</strong> — <strong>${team}</strong> means business!`,
+    `🛒 <strong>${team}</strong> is shopping exclusively at <strong>${club}</strong>!`,
+    `🏗️ <strong>${team}</strong> is constructing a <strong>${club}</strong> empire!`,
+    `🌟 <strong>${team}</strong> wants ALL the <strong>${club}</strong> stars!`,
+    `🤯 <strong>${team}</strong> just bought their 3rd <strong>${club}</strong> player — unstoppable!`,
+    `📋 <strong>${team}</strong>'s transfer policy is simple — only <strong>${club}</strong>!`,
+    `🎪 <strong>${team}</strong> is putting on a <strong>${club}</strong> show!`,
+    `🏴 <strong>${team}</strong> has planted their flag at <strong>${club}</strong>!`,
+    `🔑 <strong>${team}</strong> holds the keys to <strong>${club}</strong>'s locker room!`,
+    `💎 <strong>${team}</strong> is hoarding <strong>${club}</strong> gems!`,
+    `🧲 <strong>${team}</strong> keeps pulling <strong>${club}</strong> players in!`,
+  ];
+
+  // Club name map for display
+  const clubDisplayNames = {
+    barca: "Barcelona", acmilan: "AC Milan", rm: "Real Madrid",
+    manutd: "Man United", bayern: "Bayern Munich", bvb: "Dortmund",
+    chelsea: "Chelsea", intermilan: "Inter Milan"
+  };
+
+  // ── MONOPOLY DETECTION ──
+  // Check if saleBidder now has 3+ players from same previous club
+  pendingMonopolyBanner = null;
+  const buyerAllPlayers = [...(bidderTeams[saleBidder] || []), salePlayer];
+  const clubCounts = {};
+  buyerAllPlayers.forEach(p => {
+    const club = (playerMeta[p] || {}).prevTeam;
+    if (club) clubCounts[club] = (clubCounts[club] || 0) + 1;
+  });
+  const monopolyClub = Object.entries(clubCounts).find(([, c]) => c >= 3);
+  if (monopolyClub) {
+    const clubKey = monopolyClub[0];
+    const clubName = clubDisplayNames[clubKey] || clubKey;
+    const buyerName = (teamMeta[saleBidder] || {}).teamName || saleBidder;
+    const monopolyGradients = [
+      "linear-gradient(135deg,#0d47a1,#1565c0,#42a5f5)",
+      "linear-gradient(135deg,#1b0060,#4a0e8f,#9c27b0)",
+      "linear-gradient(135deg,#004d40,#00695c,#26a69a)",
+      "linear-gradient(135deg,#bf360c,#e64a19,#ff7043)",
+      "linear-gradient(135deg,#1a237e,#283593,#5c6bc0)",
+      "linear-gradient(135deg,#006064,#00838f,#26c6da)",
+    ];
+    pendingMonopolyBanner = {
+      html: rnd(monopolyPhrases(escapeHtml(buyerName), escapeHtml(clubName))),
+      gradient: rnd(monopolyGradients)
+    };
+  }
+
+  // ── CLUB COLLECTOR DETECTION (2nd player from same club) ──
+  // Only fires on exactly the 2nd (not 3rd+ which is Monopoly)
+  pendingCollectorBanner = null;
+  const collectorClub = Object.entries(clubCounts).find(([, c]) => c === 2);
+  if (collectorClub && !monopolyClub) {
+    const cKey = collectorClub[0];
+    const cName = clubDisplayNames[cKey] || cKey;
+    const cBuyerName = (teamMeta[saleBidder] || {}).teamName || saleBidder;
+
+    const collectorPhrases = [
+      `⚽ <strong>${escapeHtml(cBuyerName)}</strong> is cornering the <strong>${escapeHtml(cName)}</strong> market!`,
+      `🛒 <strong>${escapeHtml(cBuyerName)}</strong> has 2 from <strong>${escapeHtml(cName)}</strong> — shopping smart!`,
+      `🧩 <strong>${escapeHtml(cBuyerName)}</strong> is collecting <strong>${escapeHtml(cName)}</strong> players!`,
+      `👀 <strong>${escapeHtml(cBuyerName)}</strong> has their eye on <strong>${escapeHtml(cName)}</strong>!`,
+      `📋 2 from <strong>${escapeHtml(cName)}</strong> — <strong>${escapeHtml(cBuyerName)}</strong> has a plan!`,
+      `🎯 <strong>${escapeHtml(cBuyerName)}</strong> is targeting <strong>${escapeHtml(cName)}</strong> players!`,
+      `🔍 <strong>${escapeHtml(cBuyerName)}</strong> has scouted well — 2 from <strong>${escapeHtml(cName)}</strong>!`,
+      `⚙️ <strong>${escapeHtml(cBuyerName)}</strong> is building a <strong>${escapeHtml(cName)}</strong> engine!`,
+      `🌱 The <strong>${escapeHtml(cName)}</strong> collection grows — <strong>${escapeHtml(cBuyerName)}</strong> at 2!`,
+      `🏹 <strong>${escapeHtml(cBuyerName)}</strong> has zeroed in on <strong>${escapeHtml(cName)}</strong>!`,
+      `💡 <strong>${escapeHtml(cBuyerName)}</strong>'s strategy is clear — all about <strong>${escapeHtml(cName)}</strong>!`,
+      `🤝 Another <strong>${escapeHtml(cName)}</strong> reunion — <strong>${escapeHtml(cBuyerName)}</strong> keeps collecting!`,
+      `🦊 <strong>${escapeHtml(cBuyerName)}</strong> is being clever — 2 from <strong>${escapeHtml(cName)}</strong>!`,
+      `🔒 <strong>${escapeHtml(cBuyerName)}</strong> is locking down <strong>${escapeHtml(cName)}</strong> players!`,
+      `🌟 <strong>${escapeHtml(cBuyerName)}</strong> spots the pattern — <strong>${escapeHtml(cName)}</strong> players work!`,
+      `📈 <strong>${escapeHtml(cBuyerName)}</strong> is investing in <strong>${escapeHtml(cName)}</strong> — 2 and counting!`,
+      `🎪 <strong>${escapeHtml(cBuyerName)}</strong>'s <strong>${escapeHtml(cName)}</strong> collection is growing!`,
+      `🧲 <strong>${escapeHtml(cBuyerName)}</strong> is magnetised to <strong>${escapeHtml(cName)}</strong> players!`,
+      `🏅 <strong>${escapeHtml(cBuyerName)}</strong> values <strong>${escapeHtml(cName)}</strong> quality — 2 signed!`,
+      `🚀 <strong>${escapeHtml(cBuyerName)}</strong>'s <strong>${escapeHtml(cName)}</strong> mission is underway!`,
+      `🎭 The plot thickens — <strong>${escapeHtml(cBuyerName)}</strong> buys another <strong>${escapeHtml(cName)}</strong> player!`,
+      `🌊 <strong>${escapeHtml(cBuyerName)}</strong> rides the <strong>${escapeHtml(cName)}</strong> wave — 2 players in!`,
+    ];
+
+    const collectorGradients = [
+      "linear-gradient(135deg,#1b5e20,#2e7d32,#66bb6a)",
+      "linear-gradient(135deg,#0d47a1,#1976d2,#64b5f6)",
+      "linear-gradient(135deg,#4a148c,#7b1fa2,#ce93d8)",
+      "linear-gradient(135deg,#e65100,#f57c00,#ffb74d)",
+      "linear-gradient(135deg,#006064,#00838f,#4dd0e1)",
+      "linear-gradient(135deg,#880e4f,#c2185b,#f48fb1)",
+    ];
+
+    pendingCollectorBanner = {
+      html: collectorPhrases[Math.floor(Math.random() * collectorPhrases.length)],
+      gradient: collectorGradients[Math.floor(Math.random() * collectorGradients.length)]
+    };
+  }
+
+  // ── SESSION MVP DETECTION (every 10 sales) ──
+  pendingMvpBanner = null;
+  const salesSoFar = soldHistory.length + 1; // +1 because we haven't pushed yet
+  if (salesSoFar % 10 === 0 && salesSoFar > 0) {
+    // Compute squad strength for all teams
+    const cardWeight2 = { silver: 1, gold: 3, purple: 5 };
+    let mvpStrengthLeader = null, mvpStrengthScore = -1;
+    let mvpSpendLeast = null, mvpSpendMin = Infinity;
+    let mvpMostPlayers = null, mvpMostCount = -1;
+
+    Object.keys(bidders).forEach(cap => {
+      const spent = 1100 - bidders[cap];
+      const squad = (bidderTeams[cap] || []);
+      const strength = squad.reduce((s, p) => s + (cardWeight2[(playerMeta[p] || {}).cardType || "silver"] || 1), 0);
+
+      if (strength > mvpStrengthScore) { mvpStrengthScore = strength; mvpStrengthLeader = cap; }
+      if (spent < mvpSpendMin) { mvpSpendMin = spent; mvpSpendLeast = cap; }
+      if (squad.length > mvpMostCount) { mvpMostCount = squad.length; mvpMostPlayers = cap; }
     });
+
+    const mvpLeaderName   = (teamMeta[mvpStrengthLeader] || {}).teamName || mvpStrengthLeader || "—";
+    const mvpSpendName    = (teamMeta[mvpSpendLeast]     || {}).teamName || mvpSpendLeast    || "—";
+    const mvpPlayersName  = (teamMeta[mvpMostPlayers]    || {}).teamName || mvpMostPlayers   || "—";
+
+    const mvpPhrases = [
+      `📊 <strong>${salesSoFar} Sales Check!</strong><br><span>💪 Strongest squad: <strong>${escapeHtml(mvpLeaderName)}</strong> (${mvpStrengthScore}pts) · 💸 Budget king: <strong>${escapeHtml(mvpSpendName)}</strong> · 👥 Most players: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `🏆 <strong>Session Update — ${salesSoFar} Players Sold!</strong><br><span>🥇 Squad leader: <strong>${escapeHtml(mvpLeaderName)}</strong> · 💰 Smartest spender: <strong>${escapeHtml(mvpSpendName)}</strong> · 🧩 Biggest squad: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `📣 <strong>Checkpoint at ${salesSoFar} Sales!</strong><br><span>⚡ Dominating: <strong>${escapeHtml(mvpLeaderName)}</strong> (${mvpStrengthScore}pts) · 🏦 Still wealthy: <strong>${escapeHtml(mvpSpendName)}</strong> · 🗂️ Most signed: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `📈 <strong>${salesSoFar} Down — Mid-Auction Report!</strong><br><span>👑 Strength king: <strong>${escapeHtml(mvpLeaderName)}</strong> · 💎 Value buyer: <strong>${escapeHtml(mvpSpendName)}</strong> · 📋 Squad builder: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `🎯 <strong>After ${salesSoFar} Sales — Here's the Scoreboard!</strong><br><span>🔥 Best squad: <strong>${escapeHtml(mvpLeaderName)}</strong> (${mvpStrengthScore}pts) · 💵 Best budget: <strong>${escapeHtml(mvpSpendName)}</strong> · 🏗️ Biggest team: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `🔍 <strong>Spy Report — ${salesSoFar} Sales In!</strong><br><span>🦁 Leading the pack: <strong>${escapeHtml(mvpLeaderName)}</strong> (${mvpStrengthScore}pts) · 🤑 Spending wisely: <strong>${escapeHtml(mvpSpendName)}</strong> · 🏟️ Largest roster: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `🎙️ <strong>Live from the Auction — ${salesSoFar} Sold!</strong><br><span>⭐ Power team: <strong>${escapeHtml(mvpLeaderName)}</strong> · 🏦 Budget master: <strong>${escapeHtml(mvpSpendName)}</strong> · 📦 Most acquisitions: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `📺 <strong>Breaking News — ${salesSoFar} Players Gone!</strong><br><span>🏆 Dominating: <strong>${escapeHtml(mvpLeaderName)}</strong> (${mvpStrengthScore}pts) · 💡 Playing it smart: <strong>${escapeHtml(mvpSpendName)}</strong> · 🧱 Building fastest: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `⚡ <strong>${salesSoFar} Sales — Who's Winning?!</strong><br><span>🔥 On top: <strong>${escapeHtml(mvpLeaderName)}</strong> · 💸 Saving the most: <strong>${escapeHtml(mvpSpendName)}</strong> · 👥 Squad size leader: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `🧮 <strong>Auction Stats — ${salesSoFar} Players Sold!</strong><br><span>💪 Pts leader: <strong>${escapeHtml(mvpLeaderName)}</strong> (${mvpStrengthScore}pts) · 🪙 Budget saver: <strong>${escapeHtml(mvpSpendName)}</strong> · 📊 Most players: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `🏅 <strong>Medal Check at ${salesSoFar} Sales!</strong><br><span>🥇 Squad strength: <strong>${escapeHtml(mvpLeaderName)}</strong> · 🥈 Budget efficiency: <strong>${escapeHtml(mvpSpendName)}</strong> · 🥉 Squad size: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `🌟 <strong>${salesSoFar} Sales Done — State of Play!</strong><br><span>⚔️ Strongest force: <strong>${escapeHtml(mvpLeaderName)}</strong> (${mvpStrengthScore}pts) · 🏦 Richest team: <strong>${escapeHtml(mvpSpendName)}</strong> · 🗂️ Biggest roster: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `🎬 <strong>Scene ${salesSoFar} — Auction Highlights!</strong><br><span>🦅 Flying high: <strong>${escapeHtml(mvpLeaderName)}</strong> · 💰 Staying wealthy: <strong>${escapeHtml(mvpSpendName)}</strong> · 🧩 Most pieces: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `🔔 <strong>Attention! ${salesSoFar} Players Sold!</strong><br><span>👑 Power ranking leader: <strong>${escapeHtml(mvpLeaderName)}</strong> · 💎 Smart money: <strong>${escapeHtml(mvpSpendName)}</strong> · 🏗️ Biggest build: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+      `🗞️ <strong>Auction Gazette — ${salesSoFar} Sold!</strong><br><span>📌 Top squad: <strong>${escapeHtml(mvpLeaderName)}</strong> (${mvpStrengthScore}pts) · 📌 Best budget: <strong>${escapeHtml(mvpSpendName)}</strong> · 📌 Most players: <strong>${escapeHtml(mvpPlayersName)}</strong></span>`,
+    ];
+
+    const mvpGradients = [
+      "linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)",
+      "linear-gradient(135deg,#0d0d0d,#1a237e,#283593)",
+      "linear-gradient(135deg,#1b0030,#4a0080,#7b1fa2)",
+      "linear-gradient(135deg,#0a1628,#102040,#1a3a6a)",
+      "linear-gradient(135deg,#0d2137,#1565c0,#0d47a1)",
+    ];
+
+    pendingMvpBanner = {
+      html: mvpPhrases[Math.floor(Math.random() * mvpPhrases.length)],
+      gradient: mvpGradients[Math.floor(Math.random() * mvpGradients.length)]
+    };
+  }
+
+  // ── BETRAYAL — stored separately, shown persistently on idle panel ──
+  if (prevTeamCaptain && prevTeamCaptain !== saleBidder) {
+    const victimTeamName = (teamMeta[prevTeamCaptain] || {}).teamName || prevTeamCaptain;
+    const stealerTeamName = (teamMeta[saleBidder] || {}).teamName || saleBidder;
+    pendingBetrayalBanner = {
+      html: rnd(betrayalPhrases(escapeHtml(victimTeamName), escapeHtml(stealerTeamName), escapeHtml(salePlayer))),
+      gradient: rnd(betrayalGradients)
+    };
+  } else {
+    pendingBetrayalBanner = null;
+    // Note: homecoming is set independently — don't null it here
   }
 
   // ── REDEMPTION ARC ──
@@ -2045,6 +2497,12 @@ function showSoldFullScreen({ player, bidder, amount, afterDone }) {
 
   function startAuction() {
     result.textContent = "";
+    pendingBetrayalBanner = null;   // clear betrayal banner when next auction starts
+    pendingHomecomingBanner = null;  // clear homecoming banner when next auction starts
+    pendingMonopolyBanner = null;    // clear monopoly banner when next auction starts
+    pendingCollectorBanner = null;   // clear club collector banner
+    pendingMvpBanner = null;         // clear session MVP banner
+    budgetAssassinHtml = "";         // clear assassin banner
     if (!players.length && !unsoldPlayers.length) {
       auctionSection.innerHTML = `
         <div style="text-align:center; padding: 18px 0;">
@@ -2501,7 +2959,7 @@ function startStarsAnimation(canvas, starsState) {
   loop();
 }
 
-function revealForAuction(name, isThunder, thunderCombo, done) {
+function revealForAuction(name, isThunder, thunderCombo, done, overrideCardType, logoOverride) {
   revealState.active = true;
   revealState.done = done;
   revealState.timeouts = [];
@@ -2512,7 +2970,7 @@ function revealForAuction(name, isThunder, thunderCombo, done) {
   revealState.starsState = null;
 
   const meta = playerMeta[name] || {};
-  const actualCardType = meta.cardType || "silver";
+  const actualCardType = overrideCardType || meta.cardType || "silver";
   // Thunder always starts as the "from" card type
   const cardType = isThunder ? thunderCombo.from : actualCardType;
 
@@ -2555,10 +3013,15 @@ function revealForAuction(name, isThunder, thunderCombo, done) {
   nameEl.textContent = "";
 
   const logoEl = document.createElement("img");
-  const prevTeam = meta.prevTeam;
-  if (prevTeam && teamLogos[prevTeam]) {
-    logoEl.src = teamLogos[prevTeam];
+  if (logoOverride) {
+    logoEl.src = logoOverride;
     logoEl.className = "reveal-team-logo";
+  } else {
+    const prevTeam = meta.prevTeam;
+    if (prevTeam && teamLogos[prevTeam]) {
+      logoEl.src = teamLogos[prevTeam];
+      logoEl.className = "reveal-team-logo";
+    }
   }
 
   front.appendChild(nameEl);
@@ -2664,84 +3127,7 @@ function revealForAuction(name, isThunder, thunderCombo, done) {
 }
 
 
-function flyCardToTeam(player, team) {
-  const source = document.querySelector(".reveal-card");
-  const target = document.querySelector(
-    `[data-team="${team}"]`
-  );
 
-  if (!source || !target) return;
-
-  const s = source.getBoundingClientRect();
-  const t = target.getBoundingClientRect();
-
-  const chip = document.createElement("div");
-  chip.className = "flying-chip";
-  chip.textContent = player;
-
-  chip.style.left = `${s.left + s.width / 2}px`;
-  chip.style.top = `${s.top + s.height / 2}px`;
-  chip.style.transform = "translate(-50%, -50%) scale(1.2)";
-  chip.style.opacity = "1";
-
-  document.body.appendChild(chip);
-
-  // ✨ small delay to trigger transition
-  requestAnimationFrame(() => {
-    chip.style.left = `${t.left + t.width / 2}px`;
-    chip.style.top = `${t.top + 16}px`;
-    chip.style.transform = "translate(-50%, -50%) scale(0.9)";
-    chip.style.opacity = "0.95";
-    target.classList.add("highlight");
-setTimeout(() => target.classList.remove("highlight"), 700);
-
-  });
-
-  // 🧹 cleanup
-  setTimeout(() => {
-    chip.remove();
-  }, 950);
-}
-
-function flyNameToTeam(player, team, onComplete) {
-  const source = document.querySelector(".reveal-card .reveal-player-name");
-  const teamPanel = document.querySelector(`[data-team="${team}"]`);
-  const targetList = teamPanel?.querySelector(".team-players");
-
-  if (!source || !teamPanel || !targetList) {
-    onComplete?.();
-    return;
-  }
-
-  const s = source.getBoundingClientRect();
-  const t = targetList.getBoundingClientRect();
-
-  const clone = source.cloneNode(true);
-  clone.classList.add("flying-name");
-
-  clone.style.position = "fixed";
-  clone.style.left = `${s.left}px`;
-  clone.style.top = `${s.top}px`;
-  clone.style.width = `${s.width}px`;
-  clone.style.zIndex = "9999";
-
- document.body.appendChild(clone);
-clone.getBoundingClientRect(); // 🔥 forces browser to paint
-
-  // 🔥 Force browser to register initial position
-  clone.getBoundingClientRect();
-
-  // ✈️ Animate
-  clone.style.left = `${t.left + 10}px`;
-  clone.style.top = `${t.top + 10}px`;
-  clone.style.transform = "scale(0.9)";
-  clone.style.opacity = "0.3";
-
-  setTimeout(() => {
-    clone.remove();
-    onComplete?.();
-  }, 1200);
-}
 
 
 
@@ -2832,6 +3218,12 @@ clone.getBoundingClientRect(); // 🔥 forces browser to paint
     Object.keys(teamConsecutiveWins).forEach(k => delete teamConsecutiveWins[k]);
     Object.keys(teamLastBidAuctionIndex).forEach(k => delete teamLastBidAuctionIndex[k]);
     mostContestedRecord = { player: null, count: 0 };
+    pendingBetrayalBanner = null;
+    pendingHomecomingBanner = null;
+    pendingMonopolyBanner = null;
+    pendingCollectorBanner = null;
+    pendingMvpBanner = null;
+    budgetAssassinHtml = "";
     goldSoldPrices.length = 0;
     firstRoundUnsoldSet.clear();
     milestoneShown = { 25: false, 50: false, 75: false };
@@ -2866,5 +3258,119 @@ clone.getBoundingClientRect(); // 🔥 forces browser to paint
   } else {
     renderAuctionIdle();
   }
+
+
+
+/* ============================================================
+   TEAM INTRO — Captain Card Reveal
+   ============================================================ */
+
+function showTeamIntros(captains) {
+  if (!captains || !captains.length) { alert("No teams added yet!"); return; }
+
+  let currentIdx = 0;
+
+  // ── OUTER OVERLAY (dark background, controls) ──
+  // bg is created but NOT appended yet — it appears only after card reveal
+  const bg = document.createElement("div");
+  bg.id = "teamIntroOverlay";
+  bg.innerHTML = `
+    <div id="introControls">
+      <button id="introPrev">◀ Prev</button>
+      <span id="introCounter"></span>
+      <button id="introNext">Next ▶</button>
+      <button id="introClose">✕ Close</button>
+    </div>
+    <div id="introTeamInfo"></div>
+  `;
+  let bgAttached = false;
+
+  function showOverlay(cap, meta, sq, idx) {
+    const controls = bg.querySelector("#introControls");
+    const info     = bg.querySelector("#introTeamInfo");
+
+    if (info) {
+      info.innerHTML = `
+        <div class="intro-team-name">${escapeHtml(meta.teamName || "Team")}</div>
+        <div class="intro-captain-name">Captain: ${escapeHtml(cap)}</div>
+        <div class="intro-squad-count">${sq} player${sq !== 1 ? "s" : ""} signed</div>
+      `;
+    }
+    if (controls) {
+      bg.querySelector("#introCounter").textContent = `${idx + 1} / ${captains.length}`;
+    }
+
+    if (!bgAttached) {
+      document.body.appendChild(bg);
+      bgAttached = true;
+    }
+    requestAnimationFrame(() => bg.classList.add("visible"));
+  }
+
+  function hideOverlay() {
+    bg.classList.remove("visible");
+  }
+
+  function showCard(idx) {
+    currentIdx = idx;
+
+    // Cancel any running card reveal
+    if (revealState.active) skipRevealAnimation();
+
+    // Keep overlay hidden during all card reveals
+    hideOverlay();
+
+    const cap = captains[idx];
+    const meta = (typeof teamMeta !== "undefined" && teamMeta[cap]) ? teamMeta[cap] : {};
+    const capLogo = meta.logo || null;
+    const sq = (typeof bidderTeams !== "undefined" && bidderTeams[cap]) ? bidderTeams[cap].length : 0;
+
+    function onCardDone() {
+      const isLast = idx >= captains.length - 1;
+      if (!isLast) {
+        // Auto-advance to next captain with a brief 600ms pause
+        setTimeout(() => showCard(idx + 1), 600);
+      } else {
+        // All captains done — close and return to auction panel
+        closeIntro();
+      }
+    }
+
+    // Always use the dedicated "captain" card type — no thunder
+    revealForAuction(
+      cap,         // captain name on card
+      false,       // no thunder
+      null,        // no combo
+      onCardDone,  // auto-advance or close
+      "captain",   // always captain card type
+      capLogo      // team logo on card face
+    );
+  }
+
+  function closeIntro() {
+    if (revealState.active) skipRevealAnimation();
+    bg.classList.remove("visible");
+    setTimeout(() => { if (bg.parentNode) bg.remove(); }, 500);
+    document.removeEventListener("keydown", keyFn);
+  }
+
+  bg.querySelector("#introNext").onclick = () => {
+    if (currentIdx < captains.length - 1) showCard(currentIdx + 1);
+  };
+  bg.querySelector("#introPrev").onclick = () => {
+    if (currentIdx > 0) showCard(currentIdx - 1);
+  };
+  bg.querySelector("#introClose").onclick = closeIntro;
+
+  const keyFn = e => {
+    if (e.key === "ArrowRight" || e.key === "d") { if (currentIdx < captains.length - 1) showCard(currentIdx + 1); }
+    if (e.key === "ArrowLeft"  || e.key === "a") { if (currentIdx > 0) showCard(currentIdx - 1); }
+    if (e.key === "Escape") closeIntro();
+  };
+  document.addEventListener("keydown", keyFn);
+
+  // Show first captain
+  showCard(0);
+}
 
 });
